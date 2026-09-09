@@ -6,7 +6,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_mcp_server_lists_and_calls_read_only_tools():
-    mcp_module = pytest.importorskip("mcp")
+    pytest.importorskip("mcp")
     from mcp import Client
     from agentic_qe.mcp_server import build_mcp_server
 
@@ -14,13 +14,17 @@ def test_mcp_server_lists_and_calls_read_only_tools():
         server = build_mcp_server()
         async with Client(server) as client:
             tools = await client.list_tools()
-            names = {tool.name for tool in tools.tools}
-            assert {"scenario_context", "dataset_profile", "quality_capabilities"}.issubset(names)
+            by_name = {tool.name: tool for tool in tools.tools}
+            expected_names = {"scenario_context", "dataset_profile", "quality_capabilities"}
+            assert expected_names.issubset(by_name)
+            assert by_name["scenario_context"].output_schema is not None
 
             result = await client.call_tool(
                 "scenario_context",
                 {"scenario_path": "examples/etl-decimal-precision/scenario.json"},
             )
-            assert result.structured_content["result"]["risk"] == "HIGH"
+            assert result.is_error is False
+            assert result.structured_content is not None
+            assert result.structured_content["risk"] == "HIGH"
 
     asyncio.run(run())
