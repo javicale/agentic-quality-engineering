@@ -1,56 +1,34 @@
-# V3 — SQL / Database Differential Adapter
+# V3 — SQL / Database Differential Experiment
 
-V3 extends the Agentic Quality Engineering reference system from file-based CSV comparisons to a database-aware validation boundary.
+## Research question
+
+**Can an Agentic QE pattern validate database transformations while keeping database evidence deterministic and withholding raw rows/credentials from the agent?**
+
+V3 is an experiment, not a production database framework.
 
 ```text
 Change / Risk
       ↓
-Agent / MCP Context
+Agent + read-only MCP metadata
       ↓
-Sanitized Database Metadata
+ValidationPlan
       ↓
-Validation Plan Eval
+Deterministic Eval + Execution Gate
       ↓
-Execution Gate
-      ↓
-Read-only SQL Queries
-      ↓
-Schema Differential
-      ↓
-Row Reconciliation
-      ↓
-Critical-field Differential
-      ↓
-Observability + Evidence
-      ↓
-Risk-based Release Decision
+Baseline SQL ────────────┐
+                         ├─→ Schema + Key + Row + Field Differential
+Candidate SQL ───────────┘
+                                      ↓
+                             Observability + Evidence
+                                      ↓
+                         Risk-based Release Signal
+                                      ↓
+                              Human Decision
 ```
 
-## Reference adapter
+## Reference implementation
 
-SQLite is used for the reference implementation so CI stays deterministic, credential-free and reproducible while still exercising real SQL execution, schema discovery and keyed row reconciliation.
-
-The database boundary is isolated in `sql_adapter.py`, allowing SQL Server or PostgreSQL adapters to reuse the same differential, evidence and release contracts later.
-
-## Safety boundary
-
-The adapter:
-
-- permits only one `SELECT` or `WITH` statement per query;
-- opens validation queries in SQLite read-only mode;
-- exposes only columns, row counts and null counts through MCP `database_profile`;
-- never exposes raw database rows to the agent;
-- confines MCP database paths to `AGENTIC_QE_WORKSPACE`;
-- keeps fixture/database mutation outside the Agent/MCP boundary.
-
-## Differential layers
-
-1. **Schema compatibility** — missing baseline columns are HIGH severity; a missing key is CRITICAL.
-2. **Row reconciliation** — missing and extra keys are detected deterministically.
-3. **Critical-field fidelity** — exact representation is compared, including values such as `0.00` versus `0`.
-4. **Release policy** — high-impact findings in a HIGH-risk scenario force `NO_GO`.
-
-## Reproduce
+SQLite is the public deterministic reference so CI can execute real SQL without external infrastructure or credentials.
 
 Good path:
 
@@ -72,14 +50,130 @@ agentic-qe-sql \
   --enforce-release
 ```
 
-The regression fixture intentionally changes `0.00` to `0`, changes `125.50` to `125.5`, and drops transaction `TX-003`.
+Schema drift:
 
-## Production evolution
+```bash
+agentic-qe-sql \
+  --scenario examples/sql-etl-reconciliation/scenario.json \
+  --candidate-query schema_drift \
+  --output sql-artifacts-schema-drift \
+  --enforce-release
+```
 
-Next database adapters should preserve the same query-snapshot and differential contracts while changing connection mechanics:
+The regression fixture changes exact decimal representation and omits an expected transaction. The schema-drift candidate removes a projected baseline column.
 
-- SQL Server through `pyodbc` or an organization-approved driver;
-- PostgreSQL through `psycopg`;
-- secrets supplied only through environment/secret stores;
-- least-privilege read-only database identities;
-- query allowlists and environment-specific connection policies.
+## Differential layers
+
+### 1. Projected schema
+
+Missing baseline columns become explicit `__schema__` findings. Missing business-key columns are CRITICAL.
+
+### 2. Business-key reconciliation
+
+The shared tabular differential engine supports one or more key fields. It explicitly detects duplicate keys instead of silently overwriting duplicate rows during indexing.
+
+Composite keys are rendered deterministically, e.g.:
+
+```text
+tenant=B | transaction_id=1
+```
+
+### 3. Row reconciliation
+
+Missing expected rows are CRITICAL. Unexpected candidate rows are HIGH.
+
+### 4. Critical-field fidelity
+
+Critical fields use exact representation comparison, so values such as `0.00` and `0` are not treated as equivalent merely because they have the same numeric meaning.
+
+### 5. Release policy
+
+The experiment reuses the existing release policy. High-impact differential findings in a HIGH-risk scenario produce `NO_GO / HIGH`.
+
+## Database profiles
+
+Profiles expose metadata only:
+
+- provider;
+- projected columns;
+- row count;
+- null counts;
+- key fields;
+- distinct-key count;
+- duplicate-key count.
+
+No raw rows are included.
+
+## SQLAlchemy portability experiment
+
+`SQLAlchemyDatabaseAdapter` resolves a database URL from a named environment variable at execution time.
+
+Install:
+
+```bash
+python -m pip install -e ".[database]"
+```
+
+Example experimental configuration:
+
+```json
+{
+  "sql": {
+    "engine": "sqlalchemy-env",
+    "baseline_url_env": "BASELINE_DATABASE_URL",
+    "candidate_url_env": "CANDIDATE_DATABASE_URL",
+    "baseline_query": "SELECT ...",
+    "candidate_queries": {
+      "default": "SELECT ..."
+    }
+  }
+}
+```
+
+The URL value is not stored in the scenario, returned by `database_profile`, or written to evidence/observability.
+
+The same adapter contract can technically use SQL Server, PostgreSQL or other SQLAlchemy-supported dialects when the corresponding DBAPI/driver is installed. This lab has **not** established production readiness for those systems.
+
+CI validates portability through SQLAlchemy against a temporary SQLite database.
+
+## MCP experiment boundary
+
+For SQL scenarios, the agent is instructed to inspect:
+
+- `scenario_context(...)`;
+- `database_profile(..., side='baseline')`;
+- `database_profile(..., side='candidate')`;
+- `quality_capabilities()`.
+
+The SQLite reference is profiled in a temporary database. For environment-backed scenarios, the URL environment variables are passed into the MCP subprocess but their values remain outside model-visible structured output.
+
+## Read-only defense in depth
+
+The adapter accepts a single `SELECT` / read-only CTE statement and rejects common mutation tokens including `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `DROP`, `ALTER`, `CREATE`, `REPLACE`, `TRUNCATE`, `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA`, `GRANT` and `REVOKE`.
+
+This check is not a SQL security sandbox. A real experiment must also use least-privilege read-only database identities.
+
+## Evidence
+
+SQL runs produce the normal plan/eval/gate/evidence/release artifacts plus:
+
+```text
+database-profile.json
+database-differential.json
+```
+
+Database evidence uses schema version `3.0` and records that raw rows were not exposed to the agent and connection URLs were not recorded.
+
+## CI evidence
+
+V3 is exercised by three independent contracts:
+
+1. `deterministic-validation` — SQL good path, regression `NO_GO`, schema-drift `NO_GO`, duplicate/composite-key unit tests;
+2. `agent-mcp-contract` — metadata-only `database_profile` through the actual MCP dependency;
+3. `database-portability-contract` — environment-backed SQLAlchemy adapter without external infrastructure.
+
+## Current conclusion
+
+The experiment supports the hypothesis that **agent planning can be separated from deterministic database observation** in a small synthetic QE workflow.
+
+It does not yet answer whether the approach is sufficiently scalable, observable, performant or safe for enterprise production ETL. Those remain future research questions.

@@ -1,57 +1,81 @@
-# Architecture — Agentic QE V2
+# Architecture — Agentic QE Learning Lab
 
-## Goal
+## Working hypothesis
 
-V2 separates **agent creativity** from **quality authority**.
-
-An LLM may propose how to validate a change, but deterministic components decide whether that plan is good enough to execute and whether the resulting evidence supports release.
+Agent reasoning can be useful for validation planning **without making quality authority probabilistic**, provided planning, execution, evidence and release responsibility remain separated.
 
 ```text
 Change / Risk
       ↓
-Read-only MCP context
+Read-only MCP Context
       ↓
-Agent validation planner
+Agent ValidationPlan
       ↓
-Structured ValidationPlan
-      ↓
-Deterministic Plan Evals
+Deterministic Plan Eval
       ↓
 Execution Gate ───── BLOCKED → Evidence + NO_GO
       ↓ PASS
-Test Data
+┌───────────────────────────────────┐
+│ Deterministic experiment adapters │
+│  CSV / ETL       SQL / Database   │
+└───────────────────────────────────┘
       ↓
-Automated / Differential Execution
+Differential Result
       ↓
-Observability Events
+Observability + Evidence
       ↓
-Normalized Evidence
+Risk-based Release Signal
       ↓
-Risk-based Release Decision
-      ↓
-Human approval boundary
+Human Decision
 ```
 
 ## Components
 
-### Domain/core
+### Core quality controls
 
-- `contracts.py` — strict structured contracts for agent plans and execution gates.
+- `contracts.py` — structured agent/output contracts.
 - `evals.py` — deterministic validation-plan scoring.
-- `gating.py` — blocks weak or unsafe plans before execution.
-- `differential.py` — deterministic source/expected/candidate comparison.
-- `release.py` — release-signal policy.
-- `evidence.py` — normalized evidence artifact.
-- `observability.py` — append-only run events.
+- `gating.py` — pre-execution trust boundary.
+- `differential.py` — tabular reconciliation, including composite and duplicate-key detection.
+- `release.py` — reference release-signal policy.
+- `evidence.py` — normalized evidence.
+- `observability.py` — append-only experiment events.
 
-### Agent layer
+### Agent experiment
 
-- `planner.py` — provider-neutral planning interface.
-- `openai_planner.py` — optional OpenAI Agents SDK adapter.
-- `mcp_server.py` — read-only MCP tool server for scenario/data-profile context.
+- `planner.py` — planning interface.
+- `openai_planner.py` — optional OpenAI Agents SDK experiment, aware of CSV and SQL scenarios.
+- `mcp_server.py` — read-only scenario/dataset/database metadata tools.
 
-## Why this split matters
+### CSV experiment
 
-A model is probabilistic. Test execution, evidence, and release policy should not silently become probabilistic just because an agent participates.
+- `pipeline.py` — CSV/ETL orchestration.
+- `profile.py` — privacy-conscious CSV profiling.
 
-V2 therefore treats the LLM as a **proposal generator** and keeps authority in independently testable contracts, evals, gates, evidence, and human accountability.
+### SQL/database experiment
+
+- `sql_adapter.py` — SQLite reference adapter and environment-backed SQLAlchemy portability adapter.
+- `sql_pipeline.py` — SQL orchestration and evidence integration.
+- `sql_cli.py` — `agentic-qe-sql` CLI.
+
+## Boundaries under test
+
+### Agent boundary
+
+The agent proposes. It cannot bypass deterministic evals or the execution gate.
+
+### MCP boundary
+
+The model receives metadata intended to be sufficient for planning without raw database rows or credentials.
+
+### Database boundary
+
+The code applies a read-only statement restriction. Real database permissions remain the actual security control and should use least privilege.
+
+### Release boundary
+
+A passing plan does not imply a passing system. Differential findings feed a separate release signal, and human accountability remains explicit.
+
+## Current limitation
+
+This architecture has been exercised only through a small synthetic lab and one retained live-agent scenario. It should be interpreted as a testable research scaffold, not as an enterprise architecture claim.

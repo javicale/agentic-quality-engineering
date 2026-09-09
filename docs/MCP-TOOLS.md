@@ -1,6 +1,6 @@
-# MCP Tools
+# MCP Tools — Agentic QE Lab
 
-V2 exposes a small read-only MCP surface.
+The MCP surface is intentionally small, read-only and privacy-conscious. The purpose of these tools is to explore how much context an agent needs to plan useful validation without automatically receiving the underlying records or credentials.
 
 ## `scenario_context`
 
@@ -8,32 +8,62 @@ Returns sanitized scenario metadata:
 
 - scenario id/title;
 - risk level;
-- key field;
+- business-key fields;
 - critical fields;
-- dataset filenames.
-
-It does not return client identifiers, credentials, or arbitrary files.
+- dataset filenames when applicable;
+- SQL engine identifier when applicable.
 
 ## `dataset_profile`
 
-Returns structural information about a CSV dataset:
+For CSV experiments, returns structural information such as columns, row count, blank counts and representation distributions. Raw rows are intentionally excluded.
 
-- columns;
+## `database_profile`
+
+For database experiments, returns:
+
+- provider;
+- projected columns;
 - row count;
-- blank counts;
-- value-length distributions;
-- decimal-scale distributions.
+- null counts;
+- key fields;
+- distinct-key count;
+- duplicate-key count.
 
-The tool intentionally does **not** return raw rows. This demonstrates a privacy-preserving context pattern: give the agent enough signal to plan tests without automatically exposing the underlying records.
+Preferred scenario-based usage:
+
+```text
+database_profile(
+  scenario_path='examples/sql-etl-reconciliation/scenario.json',
+  side='baseline'
+)
+```
+
+or:
+
+```text
+database_profile(
+  scenario_path='examples/sql-etl-reconciliation/scenario.json',
+  side='candidate',
+  candidate_query_name='good'
+)
+```
+
+For the public SQLite scenario the tool creates an ephemeral database from the synthetic fixture. It also retains direct workspace-confined SQLite profiling for backwards compatibility.
+
+Raw rows, connection URLs and credentials are not returned.
 
 ## `quality_capabilities`
 
-Lists the deterministic capabilities available to the pipeline and its safety constraints.
+Lists deterministic capabilities and constraints, including CSV/SQL differential validation, schema drift, row reconciliation, composite/duplicate keys, plan evals, execution gating, evidence and release signals.
 
-## Path boundary
+## Workspace boundary
 
-All file tools are restricted to `AGENTIC_QE_WORKSPACE`. Attempts to read outside that directory are rejected.
+File-backed operations are restricted to `AGENTIC_QE_WORKSPACE`.
+
+## Database credential boundary
+
+Environment-backed connection URLs are resolved from named environment variables. Their values remain outside MCP structured output. Real experiments should use least-privilege read-only credentials.
 
 ## Transport
 
-The reference OpenAI adapter launches the MCP server over **stdio**. The server itself is compatible with the MCP SDK and can later be exposed through Streamable HTTP for a deployed environment.
+The reference agent experiment uses MCP over **stdio**. Transport evolution is deliberately separate from the current learning question.
