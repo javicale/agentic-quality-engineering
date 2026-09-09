@@ -1,39 +1,27 @@
-# Test Observability
+# Test and Agent Observability — V2
 
-Traditional test reports answer: **what passed or failed?**
+Every pipeline run emits JSONL events with a stable `run_id`.
 
-Test observability should also answer:
+V2 adds planning and gate events before test execution:
 
-- what scenario was running?
-- what risk did it represent?
-- what data was loaded?
-- what did the agent eval score?
-- where did the execution diverge?
-- what evidence supports the result?
-- what release decision consumed that evidence?
-
-## Event model
-
-Each JSONL event contains:
-
-```json
-{
-  "timestamp": "ISO-8601 UTC",
-  "run_id": "correlation id",
-  "event": "differential.completed",
-  "attributes": {}
-}
+```text
+pipeline.started
+planner.started
+planner.completed
+agent_eval.completed
+execution_gate.completed
+[execution.skipped | test_data.loaded]
+[differential.completed]
+release_decision.completed
+pipeline.completed
 ```
 
-Current events include:
+This allows a future telemetry backend to distinguish:
 
-- `pipeline.started`
-- `agent_eval.completed`
-- `test_data.loaded`
-- `differential.completed`
-- `release_decision.completed`
-- `pipeline.completed`
+- model/planner behavior;
+- plan-quality failures;
+- execution failures;
+- product/data differentials;
+- release-policy decisions.
 
-The `run_id` correlates events with evidence and release signals.
-
-A future adapter can export the same semantic events to OpenTelemetry, Grafana, an evidence store or another observability platform.
+The current JSONL recorder is intentionally simple. The next observability adapter can translate these events into OpenTelemetry spans/log records without changing domain behavior.

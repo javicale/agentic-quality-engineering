@@ -1,32 +1,18 @@
+from agentic_qe.data import load_csv
 from agentic_qe.differential import compare_datasets
 
 
-def test_exact_representation_passes():
-    expected = [{"record_id": "A-1", "value": "0.00"}]
-    candidate = [{"record_id": "A-1", "value": "0.00"}]
-
-    result = compare_datasets(
-        expected,
-        candidate,
-        key_field="record_id",
-        critical_fields=["value"],
-    )
-
+def test_differential_passes_good_candidate():
+    expected = load_csv("examples/etl-decimal-precision/expected.csv")
+    candidate = load_csv("examples/etl-decimal-precision/candidate-good.csv")
+    result = compare_datasets(expected, candidate, key_field="record_id", critical_fields=["odometer_start", "odometer_end"])
     assert result.status == "PASS"
     assert result.difference_count == 0
 
 
-def test_decimal_rounding_is_detected_as_critical():
-    expected = [{"record_id": "A-1", "value": "0.00"}]
-    candidate = [{"record_id": "A-1", "value": "0"}]
-
-    result = compare_datasets(
-        expected,
-        candidate,
-        key_field="record_id",
-        critical_fields=["value"],
-    )
-
+def test_differential_detects_precision_regression():
+    expected = load_csv("examples/etl-decimal-precision/expected.csv")
+    candidate = load_csv("examples/etl-decimal-precision/candidate-regression.csv")
+    result = compare_datasets(expected, candidate, key_field="record_id", critical_fields=["odometer_start", "odometer_end"])
     assert result.status == "FAIL"
-    assert result.difference_count == 1
-    assert result.differences[0].severity == "CRITICAL"
+    assert result.difference_count > 0

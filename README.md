@@ -2,17 +2,21 @@
 
 [![Agentic QE Quality Gate](https://github.com/javicale/agentic-quality-engineering/actions/workflows/quality-pipeline.yml/badge.svg)](https://github.com/javicale/agentic-quality-engineering/actions/workflows/quality-pipeline.yml)
 
-A working Proof of Concept for **evidence-driven, agent-assisted Quality Engineering**.
-
-This repository explores a Quality Engineering pipeline in which automation and agents increase validation capacity while **release accountability remains human-governed**.
+An executable Proof of Concept for **evidence-driven, agent-assisted Quality Engineering** where an LLM can propose validation strategy, but deterministic evals, execution gates, evidence and human accountability control what is allowed to happen.
 
 ```text
 Change / Risk
       ↓
-Test Data
+Read-only MCP Context
       ↓
-Agent Evals
+Agent Validation Planner
       ↓
+Structured ValidationPlan
+      ↓
+Deterministic Agent Evals
+      ↓
+Execution Gate ──── BLOCKED → Evidence → NO_GO
+      ↓ PASS
 Automated Execution
       ↓
 Differential Testing
@@ -22,146 +26,270 @@ Observability
 Evidence
       ↓
 Risk-based Release Decision
+      ↓
+Human Approval Boundary
 ```
 
-> This is not an "AI writes tests" demo. The goal is to make quality decisions more **observable, reproducible, auditable and risk-aware**.
+> **V2 principle:** agents may increase validation capacity; they do not silently inherit release authority.
 
-## What this PoC demonstrates
+## Why this is different from an “AI writes tests” demo
 
-- Synthetic test-data scenarios with no client or production data.
-- A deterministic **agent-evaluation layer** that scores a proposed validation plan.
-- Automated **differential testing** between expected and candidate datasets.
-- Structured execution events for **test observability**.
-- Normalized, machine-readable **evidence artifacts**.
-- A simple **risk-based release decision engine**.
-- A CI quality gate that runs the pipeline and tests without secrets.
+The model is only one component in the system. Its output is treated as an **untrusted proposal** until it passes deterministic quality checks.
 
-## Reference scenario: decimal precision in ETL
+V2 demonstrates:
 
-The included scenario models a generic ETL regression in which decimal values such as `0.00` must retain their declared precision.
+- a real, optional **OpenAI Agents SDK** planning adapter;
+- a read-only **MCP v2** context server;
+- strict structured `ValidationPlan` output;
+- independent **agent evals**;
+- a pre-execution **quality gate** that blocks weak agent plans;
+- automated differential data testing;
+- append-only observability events;
+- normalized machine-readable evidence;
+- risk-based `GO / CONDITIONAL_GO / NO_GO` decisions;
+- preservation of human release accountability;
+- deterministic CI with **no API key required**;
+- a manual live-agent workflow for real model runs when a secret is configured.
 
-Two candidate datasets are provided:
+## Reference scenario
 
-- `candidate-good.csv` preserves the expected representation and produces a `GO` signal.
-- `candidate-regression.csv` rounds decimal values and produces a `NO_GO` signal.
+The repository uses a synthetic ETL scenario: decimal values such as `0.00` must retain their declared precision after transformation.
 
-The example is synthetic and intentionally contains no employer, client, ticket, system or production identifiers.
+Three behaviors are demonstrated:
+
+```text
+Strong plan + good candidate
+→ Plan Eval PASS
+→ Execution Gate PASS
+→ Differential PASS
+→ GO / LOW
+```
+
+```text
+Strong plan + regression candidate
+→ Plan Eval PASS
+→ Execution Gate PASS
+→ Differential FAIL
+→ NO_GO / HIGH
+```
+
+```text
+Weak agent plan
+→ Plan Eval WARN
+→ Execution Gate BLOCKED
+→ Tests are NOT executed
+→ NO_GO / HIGH
+```
+
+That third path is the central V2 safety property.
+
+## Architecture
+
+```text
+src/agentic_qe/
+├── contracts.py       # strict agent/output contracts
+├── planner.py         # provider-neutral planning interface
+├── openai_planner.py  # optional live OpenAI Agents SDK adapter
+├── mcp_server.py      # read-only MCP context tools
+├── profile.py         # privacy-conscious dataset profiling
+├── evals.py           # deterministic plan evaluation
+├── gating.py          # pre-execution trust boundary
+├── differential.py    # deterministic data comparison
+├── observability.py   # run events
+├── evidence.py        # evidence normalization
+├── release.py         # risk-based release policy
+└── pipeline.py        # CLI/orchestration
+```
+
+See [Architecture](docs/ARCHITECTURE.md), [V2 Agentic Planning](docs/V2-AGENTIC-PLANNING.md), [MCP Tools](docs/MCP-TOOLS.md), and [Security Boundaries](docs/SECURITY-BOUNDARIES.md).
+
+## Planning modes
+
+### 1. Embedded — deterministic baseline
+
+No LLM, no secret:
+
+```bash
+agentic-qe run \
+  --scenario examples/etl-decimal-precision/scenario.json \
+  --candidate examples/etl-decimal-precision/candidate-good.csv \
+  --output artifacts \
+  --enforce-release
+```
+
+### 2. File — replay an agent plan
+
+```bash
+agentic-qe run \
+  --scenario examples/etl-decimal-precision/scenario.json \
+  --candidate examples/etl-decimal-precision/candidate-good.csv \
+  --plan-source file \
+  --plan examples/etl-decimal-precision/agent-proposal-good.json \
+  --output artifacts-agent \
+  --enforce-release
+```
+
+Use the intentionally weak proposal to prove the execution gate:
+
+```bash
+agentic-qe run \
+  --scenario examples/etl-decimal-precision/scenario.json \
+  --candidate examples/etl-decimal-precision/candidate-good.csv \
+  --plan-source file \
+  --plan examples/etl-decimal-precision/agent-proposal-weak.json \
+  --output artifacts-weak \
+  --enforce-release
+```
+
+### 3. OpenAI — live agent + MCP
+
+Install optional dependencies:
+
+```bash
+python -m pip install -e ".[dev,agent]"
+export OPENAI_API_KEY="..."
+```
+
+Generate a plan:
+
+```bash
+agentic-qe plan \
+  --scenario examples/etl-decimal-precision/scenario.json \
+  --provider openai \
+  --model gpt-5.6-luna \
+  --output live-plan-result.json
+```
+
+Then replay that plan through deterministic execution:
+
+```bash
+agentic-qe run \
+  --scenario examples/etl-decimal-precision/scenario.json \
+  --candidate examples/etl-decimal-precision/candidate-good.csv \
+  --plan-source file \
+  --plan live-plan-result.json \
+  --output live-artifacts \
+  --enforce-release
+```
+
+See [Live Agent Run](docs/LIVE-AGENT-RUN.md).
+
+## MCP context boundary
+
+The agent receives three read-only tools:
+
+- `scenario_context` — sanitized risk/change metadata;
+- `dataset_profile` — columns, row counts and shape/decimal-scale distributions without raw rows;
+- `quality_capabilities` — deterministic capabilities and constraints.
+
+All path access is confined to `AGENTIC_QE_WORKSPACE`.
+
+The reference live adapter uses MCP over **stdio**. The server can later move to Streamable HTTP without changing the domain contracts.
+
+## Agent evaluation model
+
+| Dimension | Weight |
+| --- | ---: |
+| Risk coverage | 20 |
+| Expected-result specificity | 20 |
+| Evidence requirements | 15 |
+| Differential testing | 15 |
+| Human accountability | 20 |
+| Tool grounding | 10 |
+| **Total** | **100** |
+
+Default pass threshold: **80**.
+
+The weights are a reference model, not a universal QA standard. See [Evaluation Model](docs/EVALUATION-MODEL.md).
+
+## Evidence produced
+
+Each run writes:
+
+```text
+artifacts/
+├── validation-plan.json
+├── eval-result.json
+├── execution-gate.json
+├── evidence.json
+├── events.jsonl
+└── release-signal.json
+```
+
+This separates:
+
+- what the agent proposed;
+- how the proposal scored;
+- whether execution was permitted;
+- what tests observed;
+- what release policy concluded.
+
+## CI strategy
+
+Normal push/PR CI has two jobs:
+
+1. **Deterministic validation** — core tests, good-candidate execution and proof that a weak plan is blocked.
+2. **Agent + MCP contract** — installs the real optional OpenAI Agents SDK and MCP packages and tests integration contracts without making an external model call.
+
+A separate `Live Agentic QE Planning` workflow is **manual-only** and uses `OPENAI_API_KEY` only when explicitly triggered.
 
 ## Repository structure
 
 ```text
 .
 ├── .github/workflows/
-│   └── quality-pipeline.yml
+│   ├── quality-pipeline.yml
+│   └── agent-live-smoke.yml
 ├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── EVALUATION-MODEL.md
-│   ├── OBSERVABILITY.md
-│   └── RELEASE-DECISION.md
-├── examples/
-│   └── etl-decimal-precision/
-│       ├── scenario.json
-│       ├── source.csv
-│       ├── expected.csv
-│       ├── candidate-good.csv
-│       └── candidate-regression.csv
+├── examples/etl-decimal-precision/
+│   ├── scenario.json
+│   ├── source.csv
+│   ├── expected.csv
+│   ├── candidate-good.csv
+│   ├── candidate-regression.csv
+│   ├── agent-proposal-good.json
+│   └── agent-proposal-weak.json
 ├── schemas/
+│   ├── validation-plan.schema.json
+│   ├── execution-gate.schema.json
 │   ├── eval-result.schema.json
 │   ├── evidence.schema.json
 │   └── release-signal.schema.json
 ├── src/agentic_qe/
-│   ├── data.py
-│   ├── differential.py
-│   ├── evals.py
-│   ├── evidence.py
-│   ├── models.py
-│   ├── observability.py
-│   ├── pipeline.py
-│   └── release.py
 └── tests/
+    └── integration/
 ```
 
-## Run locally
+## Local development
 
-Requires Python 3.11+.
+Core only:
 
 ```bash
 python -m pip install -e ".[dev]"
+pytest -m "not integration"
+```
+
+With Agent/MCP contracts:
+
+```bash
+python -m pip install -e ".[dev,agent]"
 pytest
 ```
 
-Run the reference pipeline:
+## Roadmap
 
-```bash
-agentic-qe run \
-  --scenario examples/etl-decimal-precision/scenario.json \
-  --candidate examples/etl-decimal-precision/candidate-good.csv \
-  --output artifacts
-```
+V2 establishes the trusted agent-planning boundary. Next extensions:
 
-Run the intentionally regressed candidate:
-
-```bash
-agentic-qe run \
-  --scenario examples/etl-decimal-precision/scenario.json \
-  --candidate examples/etl-decimal-precision/candidate-regression.csv \
-  --output artifacts-regression
-```
-
-The CLI writes:
-
-```text
-artifacts/
-├── eval-result.json
-├── evidence.json
-├── events.jsonl
-└── release-signal.json
-```
-
-## Release decision model
-
-The current PoC emits one of three signals:
-
-- **GO** — required validation passed and residual risk is within policy.
-- **CONDITIONAL_GO** — no release-blocking failure was observed, but evidence or eval quality is incomplete.
-- **NO_GO** — a critical/high-risk validation failed or release policy was violated.
-
-This is intentionally a reference model, not a universal release policy.
-
-## Agent evals
-
-The "agent" boundary is represented through a proposed validation plan and a deterministic evaluator. This keeps CI reproducible and avoids pretending an LLM is required for every step.
-
-The evaluator checks dimensions such as:
-
-- risk coverage;
-- expected-result specificity;
-- evidence requirements;
-- differential-testing intent;
-- human approval requirement.
-
-A future model adapter can generate the plan, but the **eval contract remains independent of the model provider**.
-
-## Engineering principles
-
-- **Evidence over assertion.**
-- **Risk coverage over test-count vanity metrics.**
-- **Deterministic foundations before autonomous behavior.**
-- **Observability before unexplained automation.**
-- **Human release accountability even when agents participate.**
-- **Provider-independent contracts for agent outputs and evals.**
-
-## Next extensions
-
-- pluggable LLM/MCP agent adapters;
-- schema/contract validation;
 - Playwright execution adapter;
-- database/SQL differential adapter;
-- OpenTelemetry-compatible traces;
-- richer risk aggregation;
+- SQL/database differential adapter;
+- OpenTelemetry spans/logs;
+- MCP Streamable HTTP deployment;
+- tool-input/output guardrails;
+- human approval/interrupt workflow;
+- signed evidence manifests;
 - policy-as-code release gates;
-- human approval workflow;
-- historical evidence and trend analysis.
+- historical eval datasets and regression evals;
+- multi-agent specialization for data, API, UI and release-risk analysis.
 
 ---
 

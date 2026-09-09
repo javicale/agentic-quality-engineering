@@ -1,0 +1,26 @@
+{
+  "objective": "Validate decimal precision preservation and detect representation regressions before release.",
+  "risk_coverage": ["functional", "data-integrity"],
+  "differential_testing": true,
+  "human_release_approval": true,
+  "evidence": ["structured-result", "execution-events"],
+  "requested_tools": ["scenario_context", "dataset_profile", "quality_capabilities"],
+  "rationale": "A data transformation can remain numerically equivalent while violating declared precision, so exact differential comparison and evidence are required.",
+  "generated_by": "fixture-agent:v2",
+  "scenarios": [
+    {
+      "name": "zero_decimal_precision",
+      "assertion": "candidate values must exactly match expected string representation",
+      "expected": "0.00 remains 0.00 after transformation",
+      "priority": "HIGH",
+      "evidence": ["structured-result", "execution-events"]
+    },
+    {
+      "name": "non_zero_decimal_precision",
+      "assertion": "candidate values must exactly match expected string representation",
+      "expected": "non-zero values retain two decimal places",
+      "priority": "HIGH",
+      "evidence": ["structured-result", "execution-events"]
+    }
+  ]
+}

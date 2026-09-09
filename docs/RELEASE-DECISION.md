@@ -1,41 +1,21 @@
-# Risk-based Release Decision
+# Release Decision — V2
 
-The release engine is intentionally small and explicit.
+The release engine emits `GO`, `CONDITIONAL_GO`, or `NO_GO`.
 
-## Signals
+## New V2 rule: execution gate first
 
-### GO
+If the validation plan fails the execution gate, tests are not run and the release signal is `NO_GO` with the gate reasons preserved as evidence.
 
-Produced when:
+This distinguishes two failure classes:
 
-- deterministic validation passes; and
-- the validation-plan eval meets threshold.
+1. **The validation strategy is not trustworthy enough to execute.**
+2. **The strategy was acceptable, but execution found a product/data problem.**
 
-Residual risk: `LOW`.
+## Current reference policy
 
-### CONDITIONAL_GO
+- Gate blocked → `NO_GO / HIGH`.
+- High-impact differential failure in a high/critical-risk scenario → `NO_GO / HIGH`.
+- Non-blocking findings or a WARN eval explicitly overridden → `CONDITIONAL_GO / MEDIUM`.
+- Passing eval + gate + differential → `GO / LOW`.
 
-Produced when there is no policy-defined blocker, but validation quality or remaining findings require explicit review.
-
-Residual risk: `MEDIUM`.
-
-### NO_GO
-
-Produced when a high/critical-risk scenario has a high-impact differential failure.
-
-Residual risk: `HIGH`.
-
-## Important constraint
-
-This PoC does **not** claim that software releases can be reduced to one formula. A real implementation should calibrate policy using:
-
-- product criticality;
-- regulatory requirements;
-- customer impact;
-- historical defect data;
-- change exposure;
-- rollback capability;
-- observability confidence;
-- business tolerance.
-
-The engineering point is that the decision should be **explicit, inspectable and supported by evidence**.
+A `GO` is not a claim of zero defects. It is a statement that the represented risks passed the configured evidence policy.

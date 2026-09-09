@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from .contracts import ValidationPlan
 from .models import EvalDimension, EvalResult
 
 
-def evaluate_validation_plan(plan: dict) -> EvalResult:
+def evaluate_validation_plan(plan: ValidationPlan | dict) -> EvalResult:
+    if not isinstance(plan, ValidationPlan):
+        plan = ValidationPlan.model_validate(plan)
+
     dimensions: list[EvalDimension] = []
 
-    scenarios = plan.get("scenarios", [])
-    risk_tags = {str(item).lower() for item in plan.get("risk_coverage", [])}
-    evidence = {str(item).lower() for item in plan.get("evidence", [])}
+    scenarios = plan.scenarios
+    risk_tags = set(plan.risk_coverage)
+    evidence = set(plan.evidence)
 
     dimensions.append(
         EvalDimension(
@@ -20,7 +24,7 @@ def evaluate_validation_plan(plan: dict) -> EvalResult:
     )
 
     explicit_expected = bool(scenarios) and all(
-        item.get("expected") and item.get("assertion") for item in scenarios
+        item.expected and item.assertion for item in scenarios
     )
     dimensions.append(
         EvalDimension(
@@ -35,8 +39,8 @@ def evaluate_validation_plan(plan: dict) -> EvalResult:
     dimensions.append(
         EvalDimension(
             name="evidence_requirements",
-            score=20 if required_evidence.issubset(evidence) else 10,
-            max_score=20,
+            score=15 if required_evidence.issubset(evidence) else 5,
+            max_score=15,
             rationale="Decision-grade evidence should include structured results and execution events.",
         )
     )
@@ -44,8 +48,8 @@ def evaluate_validation_plan(plan: dict) -> EvalResult:
     dimensions.append(
         EvalDimension(
             name="differential_testing",
-            score=20 if plan.get("differential_testing") is True else 0,
-            max_score=20,
+            score=15 if plan.differential_testing else 0,
+            max_score=15,
             rationale="Data transformations should define a differential comparison strategy.",
         )
     )
@@ -53,9 +57,19 @@ def evaluate_validation_plan(plan: dict) -> EvalResult:
     dimensions.append(
         EvalDimension(
             name="human_accountability",
-            score=20 if plan.get("human_release_approval") is True else 0,
+            score=20 if plan.human_release_approval else 0,
             max_score=20,
             rationale="Agent-assisted validation must preserve human release accountability.",
+        )
+    )
+
+    grounded = bool(plan.requested_tools) or plan.generated_by == "embedded"
+    dimensions.append(
+        EvalDimension(
+            name="tool_grounding",
+            score=10 if grounded else 0,
+            max_score=10,
+            rationale="Agent-generated plans should declare the tools/capabilities used to ground the plan.",
         )
     )
 

@@ -1,30 +1,19 @@
-# Agent Evaluation Model
+# Validation Plan Evaluation Model — V2
 
-The current evaluator scores a validation plan across five dimensions, each worth 20 points:
+Agent output is scored independently before execution.
 
-| Dimension | Intent |
-|---|---|
-| Risk coverage | Covers functional behavior and data integrity |
-| Expected-result specificity | States explicit assertions and expected outcomes |
-| Evidence requirements | Requests structured results and execution events |
-| Differential testing | Compares candidate behavior/data against an expected baseline |
-| Human accountability | Preserves human approval for release decisions |
+| Dimension | Weight | Intent |
+| --- | ---: | --- |
+| Risk coverage | 20 | Functional and data-integrity risks are represented. |
+| Expected-result specificity | 20 | Scenarios contain explicit assertions and expected outcomes. |
+| Evidence requirements | 15 | Structured results and execution events are required. |
+| Differential testing | 15 | Data transformations use an explicit comparison strategy. |
+| Human accountability | 20 | Release approval remains human-governed. |
+| Tool grounding | 10 | Agent plans declare context/capabilities used to ground the plan. |
+| **Total** | **100** | |
 
-A score of **80/100** or higher is considered `PASS`.
+Default threshold: **80**.
 
-The purpose is not to claim that five checks are a complete agent-evaluation science. The purpose is to demonstrate the architecture:
+A score below threshold produces `WARN`; the execution gate blocks WARN plans by default.
 
-```text
-Agent output → independent eval → execution eligibility / review
-```
-
-Future evals can measure:
-
-- hallucination rate;
-- test relevance;
-- risk coverage recall;
-- duplicate test generation;
-- unsafe tool use;
-- requirement traceability;
-- evidence completeness;
-- regression-detection effectiveness.
+The threshold is illustrative and should be calibrated with empirical project outcomes rather than treated as a universal industry standard.

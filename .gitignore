@@ -2,11 +2,13 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
-venv/
 dist/
 build/
 *.egg-info/
+.env
 artifacts/
 artifacts-*/
-.env
-.DS_Store
+live-artifacts/
+live-plan-result.json
+live-exit-code.txt
+validation-plan-result.json

@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  deterministic-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -23,24 +23,61 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install package
+      - name: Install core package
         run: python -m pip install -e ".[dev]"
 
-      - name: Run unit and pipeline tests
-        run: pytest
+      - name: Run core tests
+        run: pytest -m "not integration"
 
       - name: Execute reference quality pipeline
         run: |
           agentic-qe run \
             --scenario examples/etl-decimal-precision/scenario.json \
             --candidate examples/etl-decimal-precision/candidate-good.csv \
-            --output artifacts
+            --output artifacts \
+            --enforce-release
+
+      - name: Prove weak agent plan is blocked before execution
+        run: |
+          set +e
+          agentic-qe run \
+            --scenario examples/etl-decimal-precision/scenario.json \
+            --candidate examples/etl-decimal-precision/candidate-good.csv \
+            --plan-source file \
+            --plan examples/etl-decimal-precision/agent-proposal-weak.json \
+            --output artifacts-weak-plan \
+            --enforce-release
+          status=$?
+          set -e
+          test "$status" -eq 2
+          grep -q '"status": "BLOCKED"' artifacts-weak-plan/execution-gate.json
 
       - name: Upload decision-grade evidence
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: agentic-qe-evidence
-          path: artifacts/
+          path: |
+            artifacts/
+            artifacts-weak-plan/
           retention-days: 14
           if-no-files-found: error
+
+  agent-mcp-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Agent + MCP integrations
+        run: python -m pip install -e ".[dev,agent]"
+
+      - name: Test MCP and OpenAI agent adapter contracts without API calls
+        run: pytest tests/integration

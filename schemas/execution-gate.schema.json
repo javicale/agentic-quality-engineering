@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.dev/agentic-qe/execution-gate.schema.json",
+  "title": "Agentic QE Execution Gate",
+  "type": "object",
+  "required": ["allowed", "status", "reasons", "required_human_approval"],
+  "properties": {
+    "allowed": {"type": "boolean"},
+    "status": {"enum": ["PASS", "BLOCKED"]},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "required_human_approval": {"type": "boolean", "const": true}
+  },
+  "additionalProperties": false
+}

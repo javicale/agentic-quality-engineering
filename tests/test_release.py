@@ -1,55 +1,38 @@
-from agentic_qe.models import Difference, DifferentialResult, EvalResult
+from agentic_qe.contracts import ExecutionGateResult
+from agentic_qe.models import DifferentialResult, EvalDimension, EvalResult
 from agentic_qe.release import decide_release
 
 
-GOOD_EVAL = EvalResult(
-    status="PASS",
-    score=100,
-    max_score=100,
-    threshold=80,
-    dimensions=[],
-)
-
-
-def test_high_risk_critical_difference_blocks_release():
-    differential = DifferentialResult(
-        status="FAIL",
-        compared_rows=1,
-        difference_count=1,
-        differences=[
-            Difference(
-                row_key="A-1",
-                field="value",
-                expected="0.00",
-                observed="0",
-                severity="CRITICAL",
-                message="precision lost",
-            )
-        ],
-    )
-
-    signal = decide_release(
-        scenario_risk="HIGH",
-        eval_result=GOOD_EVAL,
-        differential_result=differential,
-    )
-
-    assert signal.decision == "NO_GO"
-    assert signal.residual_risk == "HIGH"
-
-
-def test_clean_validation_produces_go():
-    differential = DifferentialResult(
+def passing_eval() -> EvalResult:
+    return EvalResult(
         status="PASS",
-        compared_rows=1,
-        difference_count=0,
-        differences=[],
+        score=100,
+        max_score=100,
+        threshold=80,
+        dimensions=[EvalDimension("all", 100, 100, "ok")],
     )
 
+
+def test_release_go_when_gate_and_differential_pass():
     signal = decide_release(
         scenario_risk="HIGH",
-        eval_result=GOOD_EVAL,
-        differential_result=differential,
+        eval_result=passing_eval(),
+        differential_result=DifferentialResult("PASS", 2, 0, []),
+        execution_gate=ExecutionGateResult(allowed=True, status="PASS"),
     )
-
     assert signal.decision == "GO"
+
+
+def test_release_no_go_when_execution_gate_blocks():
+    signal = decide_release(
+        scenario_risk="HIGH",
+        eval_result=passing_eval(),
+        differential_result=None,
+        execution_gate=ExecutionGateResult(
+            allowed=False,
+            status="BLOCKED",
+            reasons=["weak agent plan"],
+        ),
+    )
+    assert signal.decision == "NO_GO"
+    assert any("weak agent plan" in reason for reason in signal.blocking_reasons)

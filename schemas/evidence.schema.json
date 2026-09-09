@@ -1,17 +1,36 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.local/agentic-qe/evidence.schema.json",
-  "title": "Quality Evidence",
+  "$id": "https://example.dev/agentic-qe/evidence.schema.json",
+  "title": "Agentic QE Evidence",
   "type": "object",
-  "required": ["schema_version", "generated_at", "run_id", "scenario", "candidate", "agent_eval", "differential", "summary"],
+  "required": [
+    "schema_version",
+    "generated_at",
+    "run_id",
+    "scenario",
+    "candidate",
+    "planner",
+    "validation_plan",
+    "agent_eval",
+    "execution_gate",
+    "differential",
+    "summary"
+  ],
   "properties": {
-    "schema_version": {"const": "1.0"},
+    "schema_version": {"const": "2.0"},
     "generated_at": {"type": "string"},
     "run_id": {"type": "string"},
     "scenario": {"type": "object"},
     "candidate": {"type": "string"},
+    "planner": {"type": "object"},
+    "validation_plan": {"type": "object"},
     "agent_eval": {"type": "object"},
-    "differential": {"type": "object"},
-    "summary": {"type": "object"}
-  }
+    "execution_gate": {"type": "object"},
+    "differential": {"type": ["object", "null"]},
+    "summary": {
+      "type": "object",
+      "required": ["execution_allowed", "validation_status", "difference_count", "eval_score", "eval_threshold"]
+    }
+  },
+  "additionalProperties": false
 }

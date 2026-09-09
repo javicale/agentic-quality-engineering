@@ -1,57 +1,57 @@
-# Architecture
+# Architecture — Agentic QE V2
 
-## Purpose
+## Goal
 
-The PoC separates **agent behavior**, **deterministic validation**, **observability**, **evidence**, and **release policy** so that one layer can evolve without making the entire quality system opaque.
+V2 separates **agent creativity** from **quality authority**.
 
-## Pipeline
+An LLM may propose how to validate a change, but deterministic components decide whether that plan is good enough to execute and whether the resulting evidence supports release.
 
 ```text
-Scenario / Risk
-      │
-      ├── Validation Plan ──> Agent Eval
-      │
-      ├── Expected Data
-      │
-      └── Candidate Data
-              │
-              v
-      Differential Engine
-              │
-              ├── Structured Events
-              ├── Evidence Artifact
-              └── Release Policy
-                       │
-                       v
-               GO / CONDITIONAL_GO / NO_GO
+Change / Risk
+      ↓
+Read-only MCP context
+      ↓
+Agent validation planner
+      ↓
+Structured ValidationPlan
+      ↓
+Deterministic Plan Evals
+      ↓
+Execution Gate ───── BLOCKED → Evidence + NO_GO
+      ↓ PASS
+Test Data
+      ↓
+Automated / Differential Execution
+      ↓
+Observability Events
+      ↓
+Normalized Evidence
+      ↓
+Risk-based Release Decision
+      ↓
+Human approval boundary
 ```
 
-## Design boundaries
+## Components
 
-### 1. Scenario contract
+### Domain/core
 
-Defines risk, test data, critical fields and the validation-plan contract.
+- `contracts.py` — strict structured contracts for agent plans and execution gates.
+- `evals.py` — deterministic validation-plan scoring.
+- `gating.py` — blocks weak or unsafe plans before execution.
+- `differential.py` — deterministic source/expected/candidate comparison.
+- `release.py` — release-signal policy.
+- `evidence.py` — normalized evidence artifact.
+- `observability.py` — append-only run events.
 
-### 2. Agent-eval contract
+### Agent layer
 
-Evaluates whether a proposed validation plan is good enough to execute. The current implementation is deterministic. A future LLM or MCP agent can generate the plan without changing the evaluator interface.
+- `planner.py` — provider-neutral planning interface.
+- `openai_planner.py` — optional OpenAI Agents SDK adapter.
+- `mcp_server.py` — read-only MCP tool server for scenario/data-profile context.
 
-### 3. Differential engine
+## Why this split matters
 
-Compares expected and observed output as data, not screenshots or prose. Differences are normalized with severity.
+A model is probabilistic. Test execution, evidence, and release policy should not silently become probabilistic just because an agent participates.
 
-### 4. Observability
-
-Every important transition emits a structured event with a `run_id`.
-
-### 5. Evidence
-
-Evidence combines scenario context, eval quality and differential findings into one machine-readable artifact.
-
-### 6. Release policy
-
-Release policy consumes evidence signals. It does not perform testing itself.
-
-## Why this separation matters
-
-Agentic systems fail when generation, execution and judgment are collapsed into a single opaque prompt. Quality Engineering needs independent contracts so outputs can be evaluated, replayed and governed.
+V2 therefore treats the LLM as a **proposal generator** and keeps authority in independently testable contracts, evals, gates, evidence, and human accountability.

@@ -1,0 +1,19 @@
+{
+  "objective": "Quickly check whether output looks acceptable.",
+  "risk_coverage": ["functional"],
+  "differential_testing": false,
+  "human_release_approval": false,
+  "evidence": [],
+  "requested_tools": [],
+  "rationale": "Minimal plan intentionally used to prove the deterministic eval gate blocks weak agent output.",
+  "generated_by": "fixture-agent:weak",
+  "scenarios": [
+    {
+      "name": "basic_check",
+      "assertion": "inspect output",
+      "expected": "looks correct",
+      "priority": "LOW",
+      "evidence": []
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .contracts import ExecutionGateResult
 from .models import DifferentialResult, EvalResult, ReleaseSignal
 
 
@@ -10,11 +11,31 @@ def decide_release(
     *,
     scenario_risk: str,
     eval_result: EvalResult,
-    differential_result: DifferentialResult,
+    differential_result: DifferentialResult | None,
+    execution_gate: ExecutionGateResult | None = None,
 ) -> ReleaseSignal:
     risk = scenario_risk.upper()
     blocking_reasons: list[str] = []
     conditions: list[str] = []
+
+    if execution_gate is not None and not execution_gate.allowed:
+        return ReleaseSignal(
+            decision="NO_GO",
+            residual_risk="HIGH",
+            blocking_reasons=[
+                "Validation execution was blocked before test execution.",
+                *execution_gate.reasons,
+            ],
+            conditions=[],
+        )
+
+    if differential_result is None:
+        return ReleaseSignal(
+            decision="NO_GO",
+            residual_risk="HIGH",
+            blocking_reasons=["No differential execution result is available."],
+            conditions=[],
+        )
 
     critical_difference = any(
         item.severity in {"CRITICAL", "HIGH"}

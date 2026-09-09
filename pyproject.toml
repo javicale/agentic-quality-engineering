@@ -4,17 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-quality-engineering"
-version = "0.1.0"
-description = "Agentic Quality Engineering PoC for evals, differential testing, observability, evidence and risk-based release decisions."
+version = "0.2.0"
+description = "Agentic Quality Engineering PoC for agent planning, evals, MCP tools, differential testing, observability, evidence and risk-based release decisions."
 requires-python = ">=3.11"
 authors = [{ name = "Javier Capa" }]
-dependencies = []
+dependencies = [
+  "pydantic>=2.11,<3",
+]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<9"]
+dev = ["pytest>=8,<10"]
+agent = [
+  "openai-agents>=0.22.2,<0.23",
+  "mcp>=2,<3",
+]
 
 [project.scripts]
 agentic-qe = "agentic_qe.pipeline:main"
+agentic-qe-mcp = "agentic_qe.mcp_server:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -25,3 +32,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+  "integration: tests requiring optional agent/MCP dependencies but no external API call",
+]
