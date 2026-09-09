@@ -22,3 +22,9 @@ def test_weak_agent_plan_warns():
     result = evaluate_validation_plan(load_plan("agent-proposal-weak.json"))
     assert result.status == "WARN"
     assert result.score < result.threshold
+
+
+def test_verified_live_agent_plan_uses_natural_language_without_losing_score():
+    result = evaluate_validation_plan(load_plan("live-plan-verified-2026-09-09.json"))
+    assert result.status == "PASS"
+    assert result.score == result.max_score == 100

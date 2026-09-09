@@ -1,0 +1,75 @@
+{
+  "differential_testing": true,
+  "evidence": [
+    "a machine-readable csv differential report comparing source.csv, transformed output, and expected.csv by record_id and critical field",
+    "exact-value and decimal-scale assertion results for odometer_start and odometer_end, including counts of passed and failed values",
+    "row-count, key-set, duplicate-key, and blank/null validation results",
+    "etl execution identifier, input/output paths, transformation version, timestamp, and environment details",
+    "failure samples containing record_id, source value, output value, expected value, and observed decimal scale",
+    "human release approver identity, decision, timestamp, and any approved exceptions"
+  ],
+  "generated_by": "openai-agents:gpt-5.6-luna",
+  "human_release_approval": true,
+  "objective": "Validate that the ETL transformation preserves declared two-decimal precision and record integrity for odometer_start and odometer_end, using source.csv and expected.csv for the etl-decimal-precision scenario.",
+  "rationale": "This is a high-risk precision-preservation change affecting two critical decimal fields. The source profile shows 3 rows with no blanks and exactly two decimal places in both fields, so exact record-level differential comparison and explicit scale checks provide direct evidence against rounding, truncation, and formatting regressions. Release must be gated on all critical assertions passing, with any exception documented and approved by a human release authority.",
+  "requested_tools": [
+    "csv-differential-testing",
+    "validation-plan-evals",
+    "execution-gating",
+    "structured-evidence",
+    "event-observability",
+    "risk-based-release-decision"
+  ],
+  "risk_coverage": [
+    "rounding, truncation, binary floating-point conversion, or formatting changes in critical decimal fields",
+    "loss, duplication, reordering, or mutation of records identified by record_id",
+    "unexpected blank, null, malformed, or scale-changing values in critical fields",
+    "regression in the etl output relative to the declared expected dataset"
+  ],
+  "scenarios": [
+    {
+      "assertion": "For every record_id in the 3-row source dataset, odometer_start and odometer_end output values are numerically identical to the expected values and retain exactly two fractional digits, matching the source profile.",
+      "evidence": [
+        "Per-field differential report keyed by record_id",
+        "Observed decimal-scale distribution for both critical fields",
+        "Zero-difference summary and any failure samples"
+      ],
+      "expected": "All 6 critical-field comparisons pass; decimal scale is 2 for all 3 odometer_start values and all 3 odometer_end values; no rounding, truncation, padding inconsistency, or representation drift is detected.",
+      "name": "Critical decimal values preserve exact value and scale",
+      "priority": "CRITICAL"
+    },
+    {
+      "assertion": "The transformed output contains exactly the same record_id key set as the source and expected datasets, with no missing, extra, duplicate, or blank keys.",
+      "evidence": [
+        "Row-count comparison",
+        "Key-set and duplicate-key report",
+        "Record-level reconciliation result"
+      ],
+      "expected": "Row count is 3 for each applicable dataset; all record_id values match exactly; duplicate and blank key counts are zero.",
+      "name": "Record identity and completeness are preserved",
+      "priority": "HIGH"
+    },
+    {
+      "assertion": "Each output odometer_start and odometer_end value is nonblank, parseable as a decimal, and conforms to the declared two-decimal scale without introducing nulls or malformed values.",
+      "evidence": [
+        "Null/blank and parse-validation counts",
+        "Format and scale assertion report",
+        "Any invalid-value samples with record_id and raw output"
+      ],
+      "expected": "Blank/null and parse failures are zero; all 6 critical values satisfy the two-decimal format and match expected values exactly.",
+      "name": "Critical fields remain populated and valid",
+      "priority": "HIGH"
+    },
+    {
+      "assertion": "The validation run records the transformation version, input and output artifacts, execution timestamp, environment, and comparison outcome, and produces a repeatable result when rerun against the same inputs.",
+      "evidence": [
+        "Execution log or event record",
+        "Artifact checksums or immutable references where available",
+        "First-run versus rerun comparison report"
+      ],
+      "expected": "Complete execution metadata is captured; rerun results are identical with no unexplained differences.",
+      "name": "ETL run is observable and reproducible",
+      "priority": "MEDIUM"
+    }
+  ]
+}
