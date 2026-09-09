@@ -83,6 +83,27 @@ Weak agent plan
 
 That third path is the central V2 safety property.
 
+## Verified live agent run
+
+On **2026-09-09**, the `Live Agentic QE Planning` workflow completed end-to-end with a real OpenAI model call through the OpenAI Agents SDK and read-only MCP context.
+
+```text
+gpt-5.6-luna
+→ MCP-grounded ValidationPlan
+→ deterministic eval PASS
+→ execution gate PASS
+→ 3 rows compared
+→ 0 differences
+→ GO / LOW
+→ exit code 0
+```
+
+The agent generated four scenarios covering decimal precision, record integrity, invalid/null handling, and ETL observability/reproducibility. Human release approval remained mandatory.
+
+The live run also exposed an evaluator defect: exact fixture tags under-scored valid natural-language risk and evidence requirements. The evaluator was hardened to use a deterministic normalized signal taxonomy, and the sanitized live plan is now a permanent regression fixture that must score **100/100** while the intentionally weak plan remains blocked.
+
+See [Verified Live Run](docs/VERIFIED-LIVE-RUN.md) and the sanitized [live plan fixture](examples/etl-decimal-precision/live-plan-verified-2026-09-09.json).
+
 ## Architecture
 
 ```text
@@ -101,7 +122,7 @@ src/agentic_qe/
 └── pipeline.py        # CLI/orchestration
 ```
 
-See [Architecture](docs/ARCHITECTURE.md), [V2 Agentic Planning](docs/V2-AGENTIC-PLANNING.md), [MCP Tools](docs/MCP-TOOLS.md), and [Security Boundaries](docs/SECURITY-BOUNDARIES.md).
+See [Architecture](docs/ARCHITECTURE.md), [V2 Agentic Planning](docs/V2-AGENTIC-PLANNING.md), [MCP Tools](docs/MCP-TOOLS.md), [Security Boundaries](docs/SECURITY-BOUNDARIES.md), and [Verified Live Run](docs/VERIFIED-LIVE-RUN.md).
 
 ## Planning modes
 
@@ -200,7 +221,7 @@ The reference live adapter uses MCP over **stdio**. The server can later move to
 
 Default pass threshold: **80**.
 
-The weights are a reference model, not a universal QA standard. See [Evaluation Model](docs/EVALUATION-MODEL.md).
+The evaluator is deterministic and accepts normalized natural-language signals rather than requiring magic exact tags. The weights are a reference model, not a universal QA standard. See [Evaluation Model](docs/EVALUATION-MODEL.md).
 
 ## Evidence produced
 
@@ -241,6 +262,7 @@ A separate `Live Agentic QE Planning` workflow is **manual-only** and uses `OPEN
 │   ├── quality-pipeline.yml
 │   └── agent-live-smoke.yml
 ├── docs/
+│   └── VERIFIED-LIVE-RUN.md
 ├── examples/etl-decimal-precision/
 │   ├── scenario.json
 │   ├── source.csv
@@ -248,7 +270,8 @@ A separate `Live Agentic QE Planning` workflow is **manual-only** and uses `OPEN
 │   ├── candidate-good.csv
 │   ├── candidate-regression.csv
 │   ├── agent-proposal-good.json
-│   └── agent-proposal-weak.json
+│   ├── agent-proposal-weak.json
+│   └── live-plan-verified-2026-09-09.json
 ├── schemas/
 │   ├── validation-plan.schema.json
 │   ├── execution-gate.schema.json
