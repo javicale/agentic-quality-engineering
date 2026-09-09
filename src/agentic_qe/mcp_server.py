@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .profile import profile_csv
+from .sql_adapter import SQLiteDatabaseAdapter
 
 
 def _workspace_root() -> Path:
@@ -37,6 +38,7 @@ def scenario_context(scenario_path: str) -> dict[str, Any]:
         "critical_fields": scenario.get("critical_fields", []),
         "source_dataset": scenario.get("source_dataset"),
         "expected_dataset": scenario.get("expected_dataset"),
+        "sql_engine": scenario.get("sql", {}).get("engine"),
     }
 
 
@@ -45,10 +47,19 @@ def dataset_profile(dataset_path: str) -> dict[str, Any]:
     return profile_csv(path)
 
 
+def database_profile(database_path: str, query: str) -> dict[str, Any]:
+    path = _safe_path(database_path, suffixes={".db", ".sqlite", ".sqlite3"})
+    adapter = SQLiteDatabaseAdapter(path)
+    return adapter.profile(query)
+
+
 def quality_capabilities() -> dict[str, Any]:
     return {
         "capabilities": [
             "csv-differential-testing",
+            "sql-database-differential-testing",
+            "schema-compatibility-checking",
+            "row-reconciliation",
             "validation-plan-evals",
             "execution-gating",
             "structured-evidence",
@@ -58,6 +69,7 @@ def quality_capabilities() -> dict[str, Any]:
         "constraints": [
             "read-only-context-tools",
             "workspace-path-boundary",
+            "database-rows-not-exposed-to-agent",
             "human-release-approval-required",
         ],
     }
@@ -67,19 +79,19 @@ def build_mcp_server():
     try:
         from mcp.server import MCPServer
     except ImportError as exc:
-        raise RuntimeError(
-            "MCP support is optional. Install with: pip install -e '.[agent]'"
-        ) from exc
+        raise RuntimeError("MCP support is optional. Install with: pip install -e '.[agent]'") from exc
 
     server = MCPServer(
         "Agentic QE Context",
         instructions=(
-            "Provide read-only, sanitized quality context. Never expose files outside the configured workspace."
+            "Provide read-only, sanitized quality context. Never expose files outside the configured workspace "
+            "and never return raw database rows."
         ),
     )
 
     server.tool()(scenario_context)
     server.tool()(dataset_profile)
+    server.tool()(database_profile)
     server.tool()(quality_capabilities)
     return server
 
