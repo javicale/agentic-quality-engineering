@@ -1,5 +1,7 @@
 # Agentic Quality Engineering
 
+[![Agentic QE Quality Gate](https://github.com/javicale/agentic-quality-engineering/actions/workflows/quality-pipeline.yml/badge.svg)](https://github.com/javicale/agentic-quality-engineering/actions/workflows/quality-pipeline.yml)
+
 A working Proof of Concept for **evidence-driven, agent-assisted Quality Engineering**.
 
 This repository explores a Quality Engineering pipeline in which automation and agents increase validation capacity while **release accountability remains human-governed**.
