@@ -1,0 +1,46 @@
+name: Agentic QE Quality Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install -e ".[dev]"
+
+      - name: Run unit and pipeline tests
+        run: pytest
+
+      - name: Execute reference quality pipeline
+        run: |
+          agentic-qe run \
+            --scenario examples/etl-decimal-precision/scenario.json \
+            --candidate examples/etl-decimal-precision/candidate-good.csv \
+            --output artifacts
+
+      - name: Upload decision-grade evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agentic-qe-evidence
+          path: artifacts/
+          retention-days: 14
+          if-no-files-found: error

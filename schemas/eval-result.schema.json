@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/agentic-qe/eval-result.schema.json",
+  "title": "Agent Evaluation Result",
+  "type": "object",
+  "required": ["status", "score", "max_score", "threshold", "dimensions"],
+  "properties": {
+    "status": {"enum": ["PASS", "FAIL", "WARN"]},
+    "score": {"type": "integer", "minimum": 0},
+    "max_score": {"type": "integer", "minimum": 1},
+    "threshold": {"type": "integer", "minimum": 0},
+    "dimensions": {"type": "array", "items": {"type": "object", "required": ["name", "score", "max_score", "rationale"]}}
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/agentic-qe/evidence.schema.json",
+  "title": "Quality Evidence",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "run_id", "scenario", "candidate", "agent_eval", "differential", "summary"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "generated_at": {"type": "string"},
+    "run_id": {"type": "string"},
+    "scenario": {"type": "object"},
+    "candidate": {"type": "string"},
+    "agent_eval": {"type": "object"},
+    "differential": {"type": "object"},
+    "summary": {"type": "object"}
+  }
+}

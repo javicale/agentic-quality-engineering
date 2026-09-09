@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/agentic-qe/release-signal.schema.json",
+  "title": "Release Signal",
+  "type": "object",
+  "required": ["decision", "residual_risk", "blocking_reasons", "conditions"],
+  "properties": {
+    "decision": {"enum": ["GO", "CONDITIONAL_GO", "NO_GO"]},
+    "residual_risk": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+    "blocking_reasons": {"type": "array", "items": {"type": "string"}},
+    "conditions": {"type": "array", "items": {"type": "string"}}
+  }
+}
