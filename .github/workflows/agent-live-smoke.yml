@@ -16,6 +16,9 @@ on:
         options:
           - candidate-good.csv
           - candidate-regression.csv
+  push:
+    paths:
+      - .agentic-live-trigger
 
 permissions:
   contents: read
@@ -26,7 +29,8 @@ jobs:
     timeout-minutes: 15
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      AGENTIC_QE_MODEL: ${{ inputs.model }}
+      AGENTIC_QE_MODEL: ${{ inputs.model || 'gpt-5.6-luna' }}
+      AGENTIC_QE_CANDIDATE: ${{ inputs.candidate || 'candidate-good.csv' }}
 
     steps:
       - name: Checkout
@@ -35,7 +39,7 @@ jobs:
       - name: Require configured API secret
         run: |
           if [ -z "$OPENAI_API_KEY" ]; then
-            echo "OPENAI_API_KEY repository secret is required for this manual workflow."
+            echo "OPENAI_API_KEY repository secret is required for this workflow."
             exit 1
           fi
 
@@ -52,7 +56,7 @@ jobs:
           agentic-qe plan \
             --scenario examples/etl-decimal-precision/scenario.json \
             --provider openai \
-            --model "${{ inputs.model }}" \
+            --model "$AGENTIC_QE_MODEL" \
             --output live-plan-result.json
 
       - name: Execute deterministic validation using saved agent plan
@@ -60,7 +64,7 @@ jobs:
           set +e
           agentic-qe run \
             --scenario examples/etl-decimal-precision/scenario.json \
-            --candidate "examples/etl-decimal-precision/${{ inputs.candidate }}" \
+            --candidate "examples/etl-decimal-precision/$AGENTIC_QE_CANDIDATE" \
             --plan-source file \
             --plan live-plan-result.json \
             --output live-artifacts \
