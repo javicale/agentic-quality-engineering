@@ -1,64 +1,132 @@
-# Agentic Quality Engineering
+# Agentic Quality Engineering Lab
 
 [![Agentic QE Quality Gate](https://github.com/javicale/agentic-quality-engineering/actions/workflows/quality-pipeline.yml/badge.svg)](https://github.com/javicale/agentic-quality-engineering/actions/workflows/quality-pipeline.yml)
 
-An executable Proof of Concept for **evidence-driven, agent-assisted Quality Engineering** where an LLM can propose validation strategy, but deterministic evals, execution gates, evidence and human accountability control what is allowed to happen.
+> **Exploration status:** active learning / R&D lab. This repository documents experiments while I study how agentic workflows, MCP, evals, differential testing, observability and evidence could augment Quality Engineering. It is **not presented as a production-ready framework or as proof of long-term Agentic AI expertise**.
+
+I am approaching Agentic Quality Engineering from a senior QA/QE perspective: start with familiar quality problems, form a research question, build the smallest useful experiment, observe what fails, and record what I learned.
+
+## What I am trying to understand
+
+The central question is:
+
+> **Where can probabilistic AI increase validation capacity without weakening deterministic quality controls, evidence or human accountability?**
+
+The current exploration looks at this possible flow:
 
 ```text
 Change / Risk
       ↓
-Read-only MCP Context
+Context / Tools
       ↓
-Agent Validation Planner
+Agent proposes a Validation Plan
       ↓
-Structured ValidationPlan
+Deterministic Eval
       ↓
-Deterministic Agent Evals
+Execution Gate
       ↓
-Execution Gate ──── BLOCKED → Evidence → NO_GO
-      ↓ PASS
-Automated Execution
+Deterministic Validation
       ↓
-Differential Testing
+Observability + Evidence
       ↓
-Observability
+Risk-based Release Signal
       ↓
-Evidence
-      ↓
-Risk-based Release Decision
-      ↓
-Human Approval Boundary
+Human Decision
 ```
 
-> **V2 principle:** agents may increase validation capacity; they do not silently inherit release authority.
+This is a hypothesis under investigation, not a claimed industry standard.
 
-## Why this is different from an “AI writes tests” demo
+## What this repository is — and is not
 
-The model is only one component in the system. Its output is treated as an **untrusted proposal** until it passes deterministic quality checks.
+**It is:**
 
-V2 demonstrates:
+- a learning lab built from executable experiments;
+- a way to connect new Agentic AI concepts with established QA/QE practices;
+- a place to test ideas such as MCP context, agent evals, execution gating and differential testing;
+- a record of findings, mistakes, limitations and next questions;
+- intentionally based on synthetic / sanitized scenarios.
 
-- a real, optional **OpenAI Agents SDK** planning adapter;
-- a read-only **MCP v2** context server;
-- strict structured `ValidationPlan` output;
-- independent **agent evals**;
-- a pre-execution **quality gate** that blocks weak agent plans;
-- automated differential data testing;
-- append-only observability events;
-- normalized machine-readable evidence;
-- risk-based `GO / CONDITIONAL_GO / NO_GO` decisions;
-- preservation of human release accountability;
-- deterministic CI with **no API key required**;
-- a manual live-agent workflow for real model runs when a secret is configured.
+**It is not:**
 
-## Reference scenario
+- a production framework;
+- a benchmark proving agent reliability;
+- a replacement for QA judgment;
+- a claim that an LLM should own release decisions;
+- a representation of any client, employer, proprietary system or production dataset.
 
-The repository uses a synthetic ETL scenario: decimal values such as `0.00` must retain their declared precision after transformation.
+## Research method
 
-Three behaviors are demonstrated:
+Instead of expanding features for their own sake, new work should follow this loop:
 
 ```text
-Strong plan + good candidate
+Research question
+      ↓
+Concept to understand
+      ↓
+Small experiment
+      ↓
+Observed result
+      ↓
+What failed / surprised me?
+      ↓
+QE implication
+      ↓
+Next hypothesis
+```
+
+See [Research Notes](docs/RESEARCH-NOTES.md) and [Learning Roadmap](docs/LEARNING-ROADMAP.md).
+
+## Experiments completed so far
+
+| Experiment | Research question | What was tested | Current finding |
+| --- | --- | --- | --- |
+| **E1 — Deterministic differential baseline** | Can release evidence be separated from simple test pass/fail? | CSV source-to-expected comparison, evidence and risk-based signal | Deterministic evidence provides the baseline an agent should not bypass. |
+| **E2 — Agent planning + MCP** | Can an agent propose a validation plan while deterministic controls retain authority? | OpenAI Agents SDK, read-only MCP context, structured plan, eval and execution gate | Yes in the reference scenario, but the first live run also exposed a defect in the evaluator itself. |
+| **E3 — SQL differential experiment** | Can the same QE pattern work against database queries without giving an agent raw production data? | SQLite/SQLAlchemy reference adapters, schema/row reconciliation, sanitized database metadata | The pattern is technically feasible in a synthetic lab; production database applicability is still unproven. |
+
+### Most useful finding so far
+
+The first live agent run produced a reasonable validation plan but initially scored **80/100** because my evaluator required overly literal tags. I treated that as an **evaluator defect**, corrected the deterministic taxonomy, and kept the captured live plan as a regression fixture.
+
+That matters more to this research than simply adding another adapter: **the system evaluating an agent must itself be testable.**
+
+See [Verified Live Run](docs/VERIFIED-LIVE-RUN.md).
+
+## Concepts I am currently learning
+
+- What makes an **agent** different from a normal LLM call?
+- When is **MCP** actually useful instead of ordinary application code or APIs?
+- What makes an **eval** trustworthy enough to gate execution?
+- How should agent output be observed, replayed and audited?
+- Which decisions should remain deterministic?
+- Where should human approval be mandatory?
+- How can these ideas fit naturally into STLC, shift-left and risk-based testing rather than becoming an AI side project?
+
+## Current implementation
+
+The code exists to make the questions concrete. Today the lab contains:
+
+- deterministic CSV differential testing;
+- an optional OpenAI Agents SDK planning experiment;
+- read-only MCP context tools;
+- structured `ValidationPlan` contracts;
+- deterministic plan evals;
+- a pre-execution gate;
+- structured evidence and observability events;
+- synthetic database source/target differential experiments;
+- SQLite and optional SQLAlchemy reference adapters;
+- `GO / CONDITIONAL_GO / NO_GO` reference release signals;
+- CI tests that do not require a live model call;
+- a manual workflow for deliberately triggered live-agent experiments.
+
+The implementation should be read as **experimental scaffolding used to learn**, not as a finished platform.
+
+## Reference scenarios
+
+### Decimal precision experiment
+
+```text
+Good candidate
 → Plan Eval PASS
 → Execution Gate PASS
 → Differential PASS
@@ -66,9 +134,7 @@ Strong plan + good candidate
 ```
 
 ```text
-Strong plan + regression candidate
-→ Plan Eval PASS
-→ Execution Gate PASS
+Regression candidate
 → Differential FAIL
 → NO_GO / HIGH
 ```
@@ -81,239 +147,104 @@ Weak agent plan
 → NO_GO / HIGH
 ```
 
-That third path is the central V2 safety property.
-
-## Verified live agent run
-
-On **2026-09-09**, the `Live Agentic QE Planning` workflow completed end-to-end with a real OpenAI model call through the OpenAI Agents SDK and read-only MCP context.
+### SQL / database experiment
 
 ```text
-gpt-5.6-luna
-→ MCP-grounded ValidationPlan
-→ deterministic eval PASS
-→ execution gate PASS
-→ 3 rows compared
-→ 0 differences
-→ GO / LOW
-→ exit code 0
+Synthetic source query
+      ↓
+Expected transformation query
+      ↓
+Candidate query
+      ↓
+Schema + key + critical-field reconciliation
+      ↓
+Evidence / release signal
 ```
 
-The agent generated four scenarios covering decimal precision, record integrity, invalid/null handling, and ETL observability/reproducibility. Human release approval remained mandatory.
+The database experiment is intentionally portable and synthetic. It does **not** establish production readiness for SQL Server, PostgreSQL, enterprise ETL workloads or production credentials.
 
-The live run also exposed an evaluator defect: exact fixture tags under-scored valid natural-language risk and evidence requirements. The evaluator was hardened to use a deterministic normalized signal taxonomy, and the sanitized live plan is now a permanent regression fixture that must score **100/100** while the intentionally weak plan remains blocked.
+See [V3 SQL Database Differential Experiment](docs/V3-SQL-DATABASE-DIFFERENTIAL.md).
 
-See [Verified Live Run](docs/VERIFIED-LIVE-RUN.md) and the sanitized [live plan fixture](examples/etl-decimal-precision/live-plan-verified-2026-09-09.json).
+## Safety boundaries used in the experiments
 
-## Architecture
+- synthetic or sanitized data only;
+- no client ticket IDs, production schemas or proprietary assets;
+- API secrets remain outside source control;
+- MCP tools are read-only and workspace-bounded;
+- database metadata can be exposed without returning raw rows;
+- agent output is treated as a proposal, not release authority;
+- live model calls are manual, not part of normal CI.
 
-```text
-src/agentic_qe/
-├── contracts.py       # strict agent/output contracts
-├── planner.py         # provider-neutral planning interface
-├── openai_planner.py  # optional live OpenAI Agents SDK adapter
-├── mcp_server.py      # read-only MCP context tools
-├── profile.py         # privacy-conscious dataset profiling
-├── evals.py           # deterministic plan evaluation
-├── gating.py          # pre-execution trust boundary
-├── differential.py    # deterministic data comparison
-├── observability.py   # run events
-├── evidence.py        # evidence normalization
-├── release.py         # risk-based release policy
-└── pipeline.py        # CLI/orchestration
-```
+## Running the lab
 
-See [Architecture](docs/ARCHITECTURE.md), [V2 Agentic Planning](docs/V2-AGENTIC-PLANNING.md), [MCP Tools](docs/MCP-TOOLS.md), [Security Boundaries](docs/SECURITY-BOUNDARIES.md), and [Verified Live Run](docs/VERIFIED-LIVE-RUN.md).
-
-## Planning modes
-
-### 1. Embedded — deterministic baseline
-
-No LLM, no secret:
-
-```bash
-agentic-qe run \
-  --scenario examples/etl-decimal-precision/scenario.json \
-  --candidate examples/etl-decimal-precision/candidate-good.csv \
-  --output artifacts \
-  --enforce-release
-```
-
-### 2. File — replay an agent plan
-
-```bash
-agentic-qe run \
-  --scenario examples/etl-decimal-precision/scenario.json \
-  --candidate examples/etl-decimal-precision/candidate-good.csv \
-  --plan-source file \
-  --plan examples/etl-decimal-precision/agent-proposal-good.json \
-  --output artifacts-agent \
-  --enforce-release
-```
-
-Use the intentionally weak proposal to prove the execution gate:
-
-```bash
-agentic-qe run \
-  --scenario examples/etl-decimal-precision/scenario.json \
-  --candidate examples/etl-decimal-precision/candidate-good.csv \
-  --plan-source file \
-  --plan examples/etl-decimal-precision/agent-proposal-weak.json \
-  --output artifacts-weak \
-  --enforce-release
-```
-
-### 3. OpenAI — live agent + MCP
-
-Install optional dependencies:
-
-```bash
-python -m pip install -e ".[dev,agent]"
-export OPENAI_API_KEY="..."
-```
-
-Generate a plan:
-
-```bash
-agentic-qe plan \
-  --scenario examples/etl-decimal-precision/scenario.json \
-  --provider openai \
-  --model gpt-5.6-luna \
-  --output live-plan-result.json
-```
-
-Then replay that plan through deterministic execution:
-
-```bash
-agentic-qe run \
-  --scenario examples/etl-decimal-precision/scenario.json \
-  --candidate examples/etl-decimal-precision/candidate-good.csv \
-  --plan-source file \
-  --plan live-plan-result.json \
-  --output live-artifacts \
-  --enforce-release
-```
-
-See [Live Agent Run](docs/LIVE-AGENT-RUN.md).
-
-## MCP context boundary
-
-The agent receives three read-only tools:
-
-- `scenario_context` — sanitized risk/change metadata;
-- `dataset_profile` — columns, row counts and shape/decimal-scale distributions without raw rows;
-- `quality_capabilities` — deterministic capabilities and constraints.
-
-All path access is confined to `AGENTIC_QE_WORKSPACE`.
-
-The reference live adapter uses MCP over **stdio**. The server can later move to Streamable HTTP without changing the domain contracts.
-
-## Agent evaluation model
-
-| Dimension | Weight |
-| --- | ---: |
-| Risk coverage | 20 |
-| Expected-result specificity | 20 |
-| Evidence requirements | 15 |
-| Differential testing | 15 |
-| Human accountability | 20 |
-| Tool grounding | 10 |
-| **Total** | **100** |
-
-Default pass threshold: **80**.
-
-The evaluator is deterministic and accepts normalized natural-language signals rather than requiring magic exact tags. The weights are a reference model, not a universal QA standard. See [Evaluation Model](docs/EVALUATION-MODEL.md).
-
-## Evidence produced
-
-Each run writes:
-
-```text
-artifacts/
-├── validation-plan.json
-├── eval-result.json
-├── execution-gate.json
-├── evidence.json
-├── events.jsonl
-└── release-signal.json
-```
-
-This separates:
-
-- what the agent proposed;
-- how the proposal scored;
-- whether execution was permitted;
-- what tests observed;
-- what release policy concluded.
-
-## CI strategy
-
-Normal push/PR CI has two jobs:
-
-1. **Deterministic validation** — core tests, good-candidate execution and proof that a weak plan is blocked.
-2. **Agent + MCP contract** — installs the real optional OpenAI Agents SDK and MCP packages and tests integration contracts without making an external model call.
-
-A separate `Live Agentic QE Planning` workflow is **manual-only** and uses `OPENAI_API_KEY` only when explicitly triggered.
-
-## Repository structure
-
-```text
-.
-├── .github/workflows/
-│   ├── quality-pipeline.yml
-│   └── agent-live-smoke.yml
-├── docs/
-│   └── VERIFIED-LIVE-RUN.md
-├── examples/etl-decimal-precision/
-│   ├── scenario.json
-│   ├── source.csv
-│   ├── expected.csv
-│   ├── candidate-good.csv
-│   ├── candidate-regression.csv
-│   ├── agent-proposal-good.json
-│   ├── agent-proposal-weak.json
-│   └── live-plan-verified-2026-09-09.json
-├── schemas/
-│   ├── validation-plan.schema.json
-│   ├── execution-gate.schema.json
-│   ├── eval-result.schema.json
-│   ├── evidence.schema.json
-│   └── release-signal.schema.json
-├── src/agentic_qe/
-└── tests/
-    └── integration/
-```
-
-## Local development
-
-Core only:
+Core deterministic experiments:
 
 ```bash
 python -m pip install -e ".[dev]"
-pytest -m "not integration"
+pytest -m "not integration and not database_integration"
 ```
 
-With Agent/MCP contracts:
+Agent/MCP contract tests without an external model call:
 
 ```bash
 python -m pip install -e ".[dev,agent]"
-pytest
+pytest -m "not database_integration"
 ```
 
-## Roadmap
+Optional SQLAlchemy database adapter tests:
 
-V2 establishes the trusted agent-planning boundary. Next extensions:
+```bash
+python -m pip install -e ".[dev,database]"
+pytest -m database_integration
+```
 
-- Playwright execution adapter;
-- SQL/database differential adapter;
-- OpenTelemetry spans/logs;
-- MCP Streamable HTTP deployment;
-- tool-input/output guardrails;
-- human approval/interrupt workflow;
-- signed evidence manifests;
-- policy-as-code release gates;
-- historical eval datasets and regression evals;
-- multi-agent specialization for data, API, UI and release-risk analysis.
+A live agent run is intentionally separate and manual. See [Live Agent Run](docs/LIVE-AGENT-RUN.md).
+
+## Repository map
+
+```text
+.
+├── docs/
+│   ├── RESEARCH-NOTES.md
+│   ├── LEARNING-ROADMAP.md
+│   ├── VERIFIED-LIVE-RUN.md
+│   └── V3-SQL-DATABASE-DIFFERENTIAL.md
+├── examples/
+│   ├── etl-decimal-precision/
+│   └── sql-etl-reconciliation/
+├── schemas/
+├── src/agentic_qe/
+├── tests/
+└── .github/workflows/
+```
+
+## Current limitations
+
+These limitations are intentional and important:
+
+- only a small number of synthetic scenarios have been explored;
+- only one verified live-agent scenario is retained as evidence so far;
+- evaluator weights and threshold are illustrative, not empirically calibrated;
+- database adapters are reference experiments, not validated enterprise connectors;
+- release signals are reference policy logic, not organizational governance;
+- observability is currently lightweight and not a full telemetry platform;
+- no claim is made that agent-generated plans outperform experienced QA engineers;
+- no production ROI, reliability or safety conclusions should be inferred from this lab.
+
+## Next direction
+
+For now, the priority is **understanding before expanding**.
+
+The next work should focus on learning questions and controlled experiments around:
+
+1. agents vs. normal LLM calls;
+2. MCP value and boundaries;
+3. eval design and failure modes;
+4. observability and replayability;
+5. human-in-the-loop release governance;
+6. only then, additional real QE execution adapters when they answer a clear research question.
 
 ---
 
-**Author:** Javier Capa — Senior Quality Software Engineer
+**Author:** Javier Capa — Senior Quality Software Engineer  
+**Repository intent:** public learning lab connecting established Quality Engineering practice with emerging Agentic AI concepts.

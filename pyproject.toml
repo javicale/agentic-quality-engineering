@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentic-quality-engineering"
 version = "0.3.0"
-description = "Agentic Quality Engineering reference system for agent planning, MCP context, CSV/SQL differential testing, observability, evidence and risk-based release decisions."
+description = "Exploratory Agentic Quality Engineering lab for learning agent planning, evals, MCP, CSV/SQL differential testing, observability, evidence and human-governed release decisions."
 requires-python = ">=3.11"
 authors = [{ name = "Javier Capa" }]
 dependencies = [
