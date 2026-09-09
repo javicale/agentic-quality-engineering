@@ -29,7 +29,7 @@ jobs:
       - name: Run core tests
         run: pytest -m "not integration"
 
-      - name: Execute reference quality pipeline
+      - name: Execute reference CSV quality pipeline
         run: |
           agentic-qe run \
             --scenario examples/etl-decimal-precision/scenario.json \
@@ -52,6 +52,27 @@ jobs:
           test "$status" -eq 2
           grep -q '"status": "BLOCKED"' artifacts-weak-plan/execution-gate.json
 
+      - name: Execute SQL differential good path
+        run: |
+          agentic-qe-sql \
+            --scenario examples/sql-etl-reconciliation/scenario.json \
+            --candidate-query good \
+            --output sql-artifacts-good \
+            --enforce-release
+
+      - name: Prove SQL regression forces NO_GO
+        run: |
+          set +e
+          agentic-qe-sql \
+            --scenario examples/sql-etl-reconciliation/scenario.json \
+            --candidate-query regression \
+            --output sql-artifacts-regression \
+            --enforce-release
+          status=$?
+          set -e
+          test "$status" -eq 2
+          grep -q '"decision": "NO_GO"' sql-artifacts-regression/release-signal.json
+
       - name: Upload decision-grade evidence
         uses: actions/upload-artifact@v4
         if: always()
@@ -60,6 +81,8 @@ jobs:
           path: |
             artifacts/
             artifacts-weak-plan/
+            sql-artifacts-good/
+            sql-artifacts-regression/
           retention-days: 14
           if-no-files-found: error
 
