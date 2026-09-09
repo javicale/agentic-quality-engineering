@@ -16,12 +16,16 @@ def load_scenario(path: str | Path) -> dict[str, Any]:
         "title",
         "risk",
         "key_field",
-        "expected_dataset",
         "validation_plan",
     }
     missing = sorted(required.difference(data))
     if missing:
         raise ValueError(f"Scenario missing required fields: {', '.join(missing)}")
+
+    has_file_dataset = "expected_dataset" in data
+    has_sql_config = "sql" in data
+    if not has_file_dataset and not has_sql_config:
+        raise ValueError("Scenario must define either expected_dataset or sql configuration.")
 
     return data
 
