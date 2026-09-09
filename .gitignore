@@ -6,8 +6,12 @@ dist/
 build/
 *.egg-info/
 .env
+*.db
+*.sqlite
+*.sqlite3
 artifacts/
 artifacts-*/
+sql-artifacts*/
 live-artifacts/
 live-plan-result.json
 live-exit-code.txt

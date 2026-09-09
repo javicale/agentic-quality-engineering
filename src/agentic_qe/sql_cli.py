@@ -11,7 +11,7 @@ def main() -> None:
         description="Run the SQL/Database Differential Adapter reference pipeline.",
     )
     parser.add_argument("--scenario", required=True)
-    parser.add_argument("--candidate-query", choices=["good", "regression"], default="good")
+    parser.add_argument("--candidate-query", default="good", help="Named candidate query from scenario.sql.candidate_queries")
     parser.add_argument("--output", default="sql-artifacts")
     parser.add_argument("--plan-source", choices=["embedded", "file", "openai"], default="embedded")
     parser.add_argument("--plan")

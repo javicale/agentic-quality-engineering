@@ -3,6 +3,7 @@
   "title": "SQL source-to-target reconciliation with precision and row-integrity checks",
   "risk": "HIGH",
   "key_field": "transaction_id",
+  "key_fields": ["transaction_id"],
   "critical_fields": ["amount", "status", "event_time"],
   "sql": {
     "engine": "sqlite",
@@ -11,7 +12,8 @@
     "baseline_query": "SELECT transaction_id, amount, status, event_time FROM source_transactions ORDER BY transaction_id",
     "candidate_queries": {
       "good": "SELECT transaction_id, amount, status, event_time FROM target_transactions_good ORDER BY transaction_id",
-      "regression": "SELECT transaction_id, amount, status, event_time FROM target_transactions_regression ORDER BY transaction_id"
+      "regression": "SELECT transaction_id, amount, status, event_time FROM target_transactions_regression ORDER BY transaction_id",
+      "schema_drift": "SELECT transaction_id, amount, status FROM target_transactions_good ORDER BY transaction_id"
     }
   },
   "validation_plan": {

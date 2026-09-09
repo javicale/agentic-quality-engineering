@@ -16,9 +16,7 @@ def _require_sdk():
         from agents.model_settings import ModelSettings
         from agents.mcp import MCPServerStdio
     except ImportError as exc:
-        raise RuntimeError(
-            "OpenAI agent support is optional. Install with: pip install -e '.[agent]'"
-        ) from exc
+        raise RuntimeError("OpenAI agent support is optional. Install with: pip install -e '.[agent]'") from exc
     return Agent, Runner, ModelSettings, MCPServerStdio
 
 
@@ -47,21 +45,40 @@ class OpenAIAgentsPlanGenerator:
     def generate(self, *, scenario: dict, scenario_path: Path) -> PlannedValidation:
         if not os.getenv("OPENAI_API_KEY"):
             raise RuntimeError(
-                "OPENAI_API_KEY is required for --plan-source=openai. "
-                "Use embedded/file planning for deterministic CI."
+                "OPENAI_API_KEY is required for --plan-source=openai. Use embedded/file planning for deterministic CI."
             )
 
         _, Runner, _, MCPServerStdio = _require_sdk()
         workspace = Path(os.getenv("AGENTIC_QE_WORKSPACE", os.getcwd())).resolve()
         relative_scenario = str(scenario_path.resolve().relative_to(workspace))
-        source_path = str((scenario_path.parent / scenario["source_dataset"]).resolve().relative_to(workspace))
+        mcp_env = {"AGENTIC_QE_WORKSPACE": str(workspace)}
 
-        prompt = (
-            "Create a validation plan for this scenario. Before producing the final structured plan, use the MCP "
-            f"tools to inspect scenario_context('{relative_scenario}'), dataset_profile('{source_path}') and "
-            "quality_capabilities(). The plan must preserve human_release_approval=true and include explicit "
-            "evidence requirements. Return only the structured ValidationPlan output."
-        )
+        if scenario.get("sql"):
+            sql_config = scenario["sql"]
+            if str(sql_config.get("engine", "sqlite")).lower() == "sqlalchemy-env":
+                for env_name in (
+                    str(sql_config.get("baseline_url_env", "")),
+                    str(sql_config.get("candidate_url_env", "")),
+                ):
+                    if env_name and os.getenv(env_name):
+                        mcp_env[env_name] = os.environ[env_name]
+            prompt = (
+                "Create a validation plan for this SQL/database scenario. Before producing the final structured plan, "
+                f"use scenario_context('{relative_scenario}'), then database_profile(scenario_path='{relative_scenario}', "
+                "side='baseline'), database_profile(scenario_path='" + relative_scenario + "', side='candidate', "
+                "candidate_query_name='good'), and quality_capabilities(). Cover schema drift, missing/extra/duplicate "
+                "business keys, critical-field transformation integrity, evidence and observability. Database profile "
+                "tools expose metadata only; never request raw rows or credentials. Preserve human_release_approval=true "
+                "and return only the structured ValidationPlan output."
+            )
+        else:
+            source_path = str((scenario_path.parent / scenario["source_dataset"]).resolve().relative_to(workspace))
+            prompt = (
+                "Create a validation plan for this scenario. Before producing the final structured plan, use the MCP "
+                f"tools to inspect scenario_context('{relative_scenario}'), dataset_profile('{source_path}') and "
+                "quality_capabilities(). The plan must preserve human_release_approval=true and include explicit "
+                "evidence requirements. Return only the structured ValidationPlan output."
+            )
 
         async def run_agent() -> ValidationPlan:
             async with MCPServerStdio(
@@ -70,7 +87,7 @@ class OpenAIAgentsPlanGenerator:
                     "command": sys.executable,
                     "args": ["-m", "agentic_qe.mcp_server"],
                     "cwd": str(workspace),
-                    "env": {"AGENTIC_QE_WORKSPACE": str(workspace)},
+                    "env": mcp_env,
                 },
                 cache_tools_list=True,
                 use_structured_content=True,
@@ -80,9 +97,7 @@ class OpenAIAgentsPlanGenerator:
                 output = result.final_output
                 if not isinstance(output, ValidationPlan):
                     output = ValidationPlan.model_validate(output)
-                return output.model_copy(
-                    update={"generated_by": f"openai-agents:{self.model}"}
-                )
+                return output.model_copy(update={"generated_by": f"openai-agents:{self.model}"})
 
         import asyncio
 
@@ -97,6 +112,7 @@ class OpenAIAgentsPlanGenerator:
                 live_model_call=True,
                 notes=[
                     "Agent was given read-only MCP context tools.",
+                    "Database profiles expose metadata, not raw rows or credentials.",
                     "Plan is evaluated by a deterministic gate before execution.",
                 ],
             ),

@@ -1,19 +1,84 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from .models import Difference, DifferentialResult
 
 
-def compare_datasets(
-    expected_rows: list[dict[str, str]],
-    candidate_rows: list[dict[str, str]],
-    *,
-    key_field: str,
-    critical_fields: list[str],
-) -> DifferentialResult:
-    expected = {row[key_field]: row for row in expected_rows}
-    candidate = {row[key_field]: row for row in candidate_rows}
+def _display_key(row: dict[str, str | None], key_fields: list[str]) -> str:
+    return " | ".join(f"{field}={row.get(field, '<MISSING>')}" for field in key_fields)
 
-    differences: list[Difference] = []
+
+def _index_rows(
+    rows: list[dict[str, str | None]],
+    *,
+    key_fields: list[str],
+    side: str,
+) -> tuple[dict[str, dict[str, str | None]], list[Difference]]:
+    indexed: dict[str, dict[str, str | None]] = {}
+    findings: list[Difference] = []
+
+    for position, row in enumerate(rows, start=1):
+        missing = [field for field in key_fields if field not in row]
+        if missing:
+            findings.append(
+                Difference(
+                    row_key=f"{side}:row#{position}",
+                    field="__key__",
+                    expected=", ".join(key_fields),
+                    observed=", ".join(sorted(row)),
+                    severity="CRITICAL",
+                    message=f"{side.capitalize()} row is missing key field(s): {', '.join(missing)}.",
+                )
+            )
+            continue
+
+        key = _display_key(row, key_fields)
+        if key in indexed:
+            findings.append(
+                Difference(
+                    row_key=key,
+                    field="__key__",
+                    expected="unique key",
+                    observed="duplicate key",
+                    severity="CRITICAL",
+                    message=f"{side.capitalize()} contains duplicate business-key values.",
+                )
+            )
+            continue
+        indexed[key] = row
+
+    return indexed, findings
+
+
+def compare_tabular(
+    expected_rows: list[dict[str, str | None]],
+    candidate_rows: list[dict[str, str | None]],
+    *,
+    key_fields: list[str],
+    critical_fields: Iterable[str],
+) -> DifferentialResult:
+    """Deterministically reconcile two tabular result sets.
+
+    Supports composite business keys and explicitly reports missing keys and duplicate
+    keys rather than silently overwriting them in a dictionary index.
+    """
+    if not key_fields:
+        raise ValueError("At least one key field is required for differential comparison.")
+
+    critical = set(critical_fields)
+    expected, expected_key_findings = _index_rows(
+        expected_rows,
+        key_fields=key_fields,
+        side="expected",
+    )
+    candidate, candidate_key_findings = _index_rows(
+        candidate_rows,
+        key_fields=key_fields,
+        side="candidate",
+    )
+
+    differences: list[Difference] = [*expected_key_findings, *candidate_key_findings]
     all_keys = sorted(set(expected) | set(candidate))
 
     for key in all_keys:
@@ -48,12 +113,12 @@ def compare_datasets(
 
         fields = sorted(set(expected_row) | set(candidate_row))
         for field in fields:
-            if field == key_field:
+            if field in key_fields:
                 continue
             expected_value = expected_row.get(field)
             candidate_value = candidate_row.get(field)
             if expected_value != candidate_value:
-                severity = "CRITICAL" if field in critical_fields else "MEDIUM"
+                severity = "CRITICAL" if field in critical else "MEDIUM"
                 differences.append(
                     Difference(
                         row_key=key,
@@ -70,4 +135,20 @@ def compare_datasets(
         compared_rows=len(all_keys),
         difference_count=len(differences),
         differences=differences,
+    )
+
+
+def compare_datasets(
+    expected_rows: list[dict[str, str | None]],
+    candidate_rows: list[dict[str, str | None]],
+    *,
+    key_field: str,
+    critical_fields: list[str],
+) -> DifferentialResult:
+    """Backwards-compatible single-key wrapper for the existing CSV pipeline."""
+    return compare_tabular(
+        expected_rows,
+        candidate_rows,
+        key_fields=[key_field],
+        critical_fields=critical_fields,
     )

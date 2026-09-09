@@ -28,4 +28,20 @@ def test_mcp_server_lists_and_calls_read_only_tools():
             assert result.structured_content is not None
             assert result.structured_content["risk"] == "HIGH"
 
+            database_result = await client.call_tool(
+                "database_profile",
+                {
+                    "scenario_path": "examples/sql-etl-reconciliation/scenario.json",
+                    "side": "candidate",
+                    "candidate_query_name": "good"
+                },
+            )
+            assert database_result.is_error is False
+            assert database_result.structured_content is not None
+            profile = database_result.structured_content
+            assert profile["row_count"] == 3
+            assert profile["duplicate_key_count"] == 0
+            assert "rows" not in profile
+            assert "url" not in str(profile).lower()
+
     asyncio.run(run())

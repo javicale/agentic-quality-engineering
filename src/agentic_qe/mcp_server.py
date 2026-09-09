@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from .profile import profile_csv
-from .sql_adapter import SQLiteDatabaseAdapter
+from .sql_adapter import SQLAlchemyDatabaseAdapter, SQLiteDatabaseAdapter
 
 
 def _workspace_root() -> Path:
@@ -30,11 +31,12 @@ def _safe_path(raw_path: str, *, suffixes: set[str]) -> Path:
 def scenario_context(scenario_path: str) -> dict[str, Any]:
     path = _safe_path(scenario_path, suffixes={".json"})
     scenario = json.loads(path.read_text(encoding="utf-8"))
+    keys = scenario.get("key_fields") or ([scenario["key_field"]] if scenario.get("key_field") else [])
     return {
         "id": scenario["id"],
         "title": scenario["title"],
         "risk": scenario["risk"],
-        "key_field": scenario["key_field"],
+        "key_fields": keys,
         "critical_fields": scenario.get("critical_fields", []),
         "source_dataset": scenario.get("source_dataset"),
         "expected_dataset": scenario.get("expected_dataset"),
@@ -47,10 +49,71 @@ def dataset_profile(dataset_path: str) -> dict[str, Any]:
     return profile_csv(path)
 
 
-def database_profile(database_path: str, query: str) -> dict[str, Any]:
+def _scenario_database_profile(
+    *,
+    scenario_path: str,
+    side: str,
+    candidate_query_name: str,
+) -> dict[str, Any]:
+    path = _safe_path(scenario_path, suffixes={".json"})
+    scenario = json.loads(path.read_text(encoding="utf-8"))
+    sql_config = scenario.get("sql")
+    if not sql_config:
+        raise ValueError("Scenario does not define SQL database configuration.")
+    keys = scenario.get("key_fields") or ([scenario["key_field"]] if scenario.get("key_field") else [])
+    engine = str(sql_config.get("engine", "sqlite")).lower()
+    if side not in {"baseline", "candidate"}:
+        raise ValueError("side must be baseline or candidate.")
+    query = (
+        sql_config["baseline_query"]
+        if side == "baseline"
+        else sql_config["candidate_queries"][candidate_query_name]
+    )
+
+    if engine == "sqlite":
+        setup_script = (path.parent / sql_config["setup_script"]).resolve()
+        setup_script.relative_to(path.parent.resolve())
+        with tempfile.TemporaryDirectory(prefix="agentic-qe-mcp-") as temp_dir:
+            adapter = SQLiteDatabaseAdapter(Path(temp_dir) / "profile.db")
+            adapter.initialize_from_script(setup_script)
+            return adapter.profile(query, key_fields=keys)
+
+    if engine == "sqlalchemy-env":
+        env_name = (
+            str(sql_config["baseline_url_env"])
+            if side == "baseline"
+            else str(sql_config["candidate_url_env"])
+        )
+        adapter = SQLAlchemyDatabaseAdapter(env_name)
+        return adapter.profile(query, key_fields=keys)
+
+    raise ValueError(f"Unsupported SQL engine: {engine}")
+
+
+def database_profile(
+    database_path: str = "",
+    query: str = "",
+    scenario_path: str = "",
+    side: str = "baseline",
+    candidate_query_name: str = "good",
+    key_fields: list[str] | None = None,
+) -> dict[str, Any]:
+    """Return database metadata only; never connection URLs, credentials or raw rows.
+
+    `scenario_path` is preferred for agent use. `database_path` + `query` is retained
+    for backwards-compatible direct profiling of an existing SQLite file.
+    """
+    if scenario_path:
+        return _scenario_database_profile(
+            scenario_path=scenario_path,
+            side=side,
+            candidate_query_name=candidate_query_name,
+        )
+    if not database_path or not query:
+        raise ValueError("Provide scenario_path or both database_path and query.")
     path = _safe_path(database_path, suffixes={".db", ".sqlite", ".sqlite3"})
     adapter = SQLiteDatabaseAdapter(path)
-    return adapter.profile(query)
+    return adapter.profile(query, key_fields=key_fields or [])
 
 
 def quality_capabilities() -> dict[str, Any]:
@@ -58,8 +121,12 @@ def quality_capabilities() -> dict[str, Any]:
         "capabilities": [
             "csv-differential-testing",
             "sql-database-differential-testing",
-            "schema-compatibility-checking",
+            "schema-drift-detection",
             "row-reconciliation",
+            "composite-key-reconciliation",
+            "duplicate-key-detection",
+            "read-only-database-profiling",
+            "sqlalchemy-database-portability",
             "validation-plan-evals",
             "execution-gating",
             "structured-evidence",
@@ -70,6 +137,7 @@ def quality_capabilities() -> dict[str, Any]:
             "read-only-context-tools",
             "workspace-path-boundary",
             "database-rows-not-exposed-to-agent",
+            "database-credentials-never-returned-to-agent",
             "human-release-approval-required",
         ],
     }
@@ -84,11 +152,10 @@ def build_mcp_server():
     server = MCPServer(
         "Agentic QE Context",
         instructions=(
-            "Provide read-only, sanitized quality context. Never expose files outside the configured workspace "
-            "and never return raw database rows."
+            "Provide read-only, sanitized quality context. Never expose files outside the configured workspace, "
+            "raw database rows, connection URLs or credentials."
         ),
     )
-
     server.tool()(scenario_context)
     server.tool()(dataset_profile)
     server.tool()(database_profile)
