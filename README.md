@@ -2,7 +2,7 @@
 
 [![Agentic QE Quality Gate](https://github.com/javicale/agentic-quality-engineering/actions/workflows/quality-pipeline.yml/badge.svg)](https://github.com/javicale/agentic-quality-engineering/actions/workflows/quality-pipeline.yml)
 
-> **Exploration status:** active learning / R&D lab. This repository documents executable experiments while I study how agentic workflows, MCP, evals, differential testing, observability and evidence could augment Quality Engineering. It is **not presented as a production-ready framework or as proof of long-term Agentic AI expertise**.
+> **Exploration status:** active learning / R&D lab. This repository documents executable experiments while I study how agentic workflows, MCP, evals, differential testing, observability, evidence and plan-to-execution traceability could augment Quality Engineering. It is **not presented as a production-ready framework or as proof of long-term Agentic AI expertise**.
 
 I am approaching Agentic Quality Engineering from a senior QA/QE perspective: start with familiar quality problems, form a research question, build the smallest useful experiment, observe what fails, and record what I learned.
 
@@ -19,13 +19,15 @@ Agent proposes ValidationPlan
       ↓
 Deterministic Eval
       ↓
-Execution Gate ─── BLOCKED → Evidence → NO_GO
-      ↓ PASS
-┌──────────────────────────────┐
-│ Deterministic Validation     │
-│  • CSV / ETL                │
-│  • SQL / Database           │
-└──────────────────────────────┘
+Pre-execution Gate
+      ↓
+Scenario → Required Capability Mapping
+      ↓
+Deterministic Validation
+      ↓
+Plan-to-Execution Traceability
+      ↓
+Coverage Gate
       ↓
 Observability + Evidence
       ↓
@@ -36,90 +38,91 @@ Human Decision
 
 This is a hypothesis under investigation, not a claimed industry standard.
 
-## What this repository is — and is not
-
-**It is:**
-
-- a learning lab built from executable experiments;
-- a bridge between emerging Agentic AI concepts and established QA/QE practices;
-- a place to test MCP context, agent evals, execution gating and differential validation;
-- a record of findings, mistakes, limitations and next questions;
-- intentionally based on synthetic / sanitized scenarios.
-
-**It is not:**
-
-- a production framework;
-- a benchmark proving agent reliability;
-- a replacement for QA judgment;
-- a claim that an LLM should own release decisions;
-- a representation of any client, employer, proprietary system or production dataset.
-
-## Research method
-
-```text
-Research question
-      ↓
-Concept to understand
-      ↓
-Small experiment
-      ↓
-Observed result
-      ↓
-What failed / surprised me?
-      ↓
-QE implication
-      ↓
-Next hypothesis
-```
-
-See [Research Notes](docs/RESEARCH-NOTES.md) and [Learning Roadmap](docs/LEARNING-ROADMAP.md).
-
-## Experiments completed so far
+## Experiments completed
 
 | Experiment | Research question | What was tested | Current finding |
 | --- | --- | --- | --- |
 | **E1 — Deterministic differential baseline** | Can release evidence be separated from simple test pass/fail? | CSV source-to-expected comparison, evidence and risk-based signal | Deterministic evidence provides the baseline an agent should not bypass. |
-| **E2 — Agent planning + MCP** | Can an agent propose a validation plan while deterministic controls retain authority? | OpenAI Agents SDK, read-only MCP context, structured plan, eval and execution gate | Yes in the reference scenario, but the first live run also exposed a defect in the evaluator itself. |
-| **E3 — SQL / Database Differential** | Can the same pattern validate database transformations without giving the agent raw database data or credentials? | SQLite reference execution, SQLAlchemy portability contract, schema/key/row/field reconciliation, MCP metadata profiles and a verified live SQL agent run | The live SQL experiment reached `100/100 → PASS → GO / LOW`; it also exposed the need to separate plan quality from execution coverage. |
+| **E2 — Agent planning + MCP** | Can an agent propose a validation plan while deterministic controls retain authority? | OpenAI Agents SDK, read-only MCP context, structured plan, eval and execution gate | Yes in the reference scenario; the first live run also exposed an evaluator defect. |
+| **E3 — SQL / Database Differential** | Can the pattern validate database transformations without exposing raw database data or credentials? | SQLite, SQLAlchemy portability, schema/key/row/field reconciliation, metadata-only MCP and a verified live SQL run | Technically feasible in the synthetic lab; the live run exposed that plan quality and execution coverage are different claims. |
+| **E4 — Plan-to-Execution Traceability** | Can every executable agent scenario be tied to deterministic capability and evidence? | `required_capabilities`, capability registry, scenario mapping, execution results and coverage-aware release policy | Yes for registered capabilities; incomplete HIGH/CRITICAL coverage now blocks release even if another deterministic check is green. |
 
-## Most useful findings so far
+## Main findings
 
-The first live agent run produced a reasonable validation plan but initially scored **80/100** because the evaluator required overly literal tags. I treated that as an **evaluator defect**, corrected the deterministic taxonomy, and retained the captured live plan as a regression fixture.
+The lab produced three findings that shaped the architecture:
 
-The first live SQL agent run produced an excellent **100/100** plan, but it also proposed broader work such as mutation checks that a single SQL differential invocation did not execute. That exposed a second quality problem: **a strong plan and a green execution are different claims**. V3.1 therefore records `execution-scope.json` so a release signal cannot be casually interpreted as “every agent scenario ran.”
+1. **The evaluator must itself be testable.** The first live plan initially scored 80/100 because the evaluator relied on overly literal tags; the evaluator was corrected and the plan retained as a regression fixture.
+2. **Plan quality is not execution coverage.** The first live SQL plan scored 100/100 while proposing broader checks than one SQL differential invocation actually executed.
+3. **Coverage must affect release authority.** V4 makes every executable scenario declare deterministic capabilities and blocks `GO` when HIGH/CRITICAL plan coverage is unsupported, deferred or failed.
 
-See [Verified Live Run](docs/VERIFIED-LIVE-RUN.md) and [Verified Live SQL Run](docs/VERIFIED-LIVE-SQL-RUN.md).
+See [Verified Live Run](docs/VERIFIED-LIVE-RUN.md), [Verified Live SQL Run](docs/VERIFIED-LIVE-SQL-RUN.md), and [Plan-to-Execution Traceability](docs/PLAN-TO-EXECUTION-TRACEABILITY.md).
 
-## E3 — SQL / Database Differential
+## V4 — Plan-to-Execution Traceability
 
-The database experiment now tests four separate concerns:
+Every executable scenario now declares `required_capabilities` using IDs from the deterministic capability registry exposed through MCP `quality_capabilities()`.
 
 ```text
-Read-only SQL
-   ↓
-Projected schema comparison
-   ↓
-Business-key reconciliation
-   ↓
-Row + critical-field differential
-   ↓
-Evidence + explicit execution scope
-   ↓
-Release signal
+ValidationScenario
+      ↓
+required_capabilities[]
+      ↓
+Capability Registry
+      ↓
+SUPPORTED / DEFERRED / UNSUPPORTED
+      ↓
+PASS / FAIL / NOT_EXECUTED
+      ↓
+Scenario evidence refs
+      ↓
+Coverage Gate
+PASS / WARN / BLOCKED
+      ↓
+Release policy
 ```
 
-The differential layer explicitly detects:
+A strong plan is no longer sufficient by itself. The final release signal accounts for what the system can actually execute:
 
-- missing or extra projected columns;
+- all planned scenarios covered and passing → preserve the deterministic release decision;
+- incomplete LOW/MEDIUM coverage → at least `CONDITIONAL_GO / MEDIUM`;
+- incomplete HIGH/CRITICAL coverage → `NO_GO / HIGH`.
+
+The repository includes an intentionally unsupported HIGH-priority `mutation-testing` fixture. Its plan eval and CSV differential can both pass, but the capability registry marks the scenario `UNSUPPORTED`, the traceability gate becomes `BLOCKED`, and the final decision is `NO_GO / HIGH`.
+
+That is the core V4 safety property.
+
+## Deterministic execution capabilities
+
+Current registry:
+
+- `csv-record-differential`
+- `projected-schema-differential`
+- `business-key-reconciliation`
+- `duplicate-key-detection`
+- `critical-field-differential`
+- `database-metadata-profile`
+- `validation-plan-eval`
+- `execution-gating`
+- `structured-evidence`
+- `execution-observability`
+- `human-release-approval`
+
+An agent cannot create a capability by naming one. Unknown capability IDs remain `UNSUPPORTED`.
+
+## SQL / Database Differential
+
+The SQL experiment includes:
+
+- projected schema drift detection;
 - missing and unexpected rows;
-- duplicate business keys rather than silently overwriting them;
-- composite business keys;
-- exact critical-field differences such as `0.00` versus `0`;
-- row count, null count and key-cardinality signals.
+- duplicate and composite business keys;
+- exact critical-field differential such as `0.00` versus `0`;
+- row/null/key-cardinality profiles;
+- SQLite deterministic reference execution;
+- optional SQLAlchemy environment-backed portability;
+- metadata-only MCP database context;
+- verified live `gpt-5.6-luna` SQL planning.
 
-### Verified live Agentic SQL path
-
-On **2026-09-09**, a real `gpt-5.6-luna` call used read-only MCP `scenario_context`, baseline/candidate `database_profile`, and `quality_capabilities` to create a structured SQL validation plan. The plan scored **100/100**, the execution gate passed, the deterministic adapter compared 3 rows with 0 differences, and the reference release policy produced **`GO / LOW`**.
+The live SQL path previously reached:
 
 ```text
 gpt-5.6-luna
@@ -135,89 +138,29 @@ Execution Gate PASS
 GO / LOW
 ```
 
-The sanitized live plan is retained at [live-plan-verified-2026-09-09.json](examples/sql-etl-reconciliation/live-plan-verified-2026-09-09.json).
+That historical V3.1 plan predates the V4 `required_capabilities` contract. It remains preserved as evidence of the original experiment, but historical plans are not silently upgraded to V4 executable evidence.
 
-### Reproduce the SQLite experiment
+## Evidence model
 
-Good path:
+V4 separates four claims:
 
-```bash
-agentic-qe-sql \
-  --scenario examples/sql-etl-reconciliation/scenario.json \
-  --candidate-query good \
-  --output sql-artifacts-good \
-  --enforce-release
-```
+1. `eval-result.json` — **Was the agent proposal good enough?**
+2. `execution-gate.json` — **Was it permitted to execute?**
+3. `plan-traceability.json` — **Which planned scenarios were actually supported and executed?**
+4. `release-signal.json` — **What does the combined evidence permit us to say about release?**
 
-Regression path:
+`evidence.json` uses schema version `4.0` and embeds the traceability structure. SQL runs also retain `execution-scope.json` as a compatibility summary, with scenario-level traceability marked `IMPLEMENTED`.
 
-```bash
-agentic-qe-sql \
-  --scenario examples/sql-etl-reconciliation/scenario.json \
-  --candidate-query regression \
-  --output sql-artifacts-regression \
-  --enforce-release
-```
+## Agent + MCP boundary
 
-Schema-drift path:
-
-```bash
-agentic-qe-sql \
-  --scenario examples/sql-etl-reconciliation/scenario.json \
-  --candidate-query schema_drift \
-  --output sql-artifacts-schema-drift \
-  --enforce-release
-```
-
-The good path reaches `GO / LOW`. The regression and missing-column paths deterministically produce `NO_GO` in the HIGH-risk reference scenario.
-
-### Portable database boundary
-
-SQLite remains the credential-free deterministic reference. A separate `SQLAlchemyDatabaseAdapter` resolves connection URLs **only from environment variables** and is tested in CI against a temporary database.
-
-The URL value is not returned in database profiles, evidence or agent-visible MCP output. SQL Server, PostgreSQL and other SQLAlchemy-supported dialects can use the same experiment boundary when the appropriate DBAPI/driver is installed; that does **not** imply those enterprise integrations have already been production-validated here.
-
-See [V3 SQL / Database Differential](docs/V3-SQL-DATABASE-DIFFERENTIAL.md).
-
-## Agent + MCP database boundary
-
-The MCP server exposes four tools:
+The MCP server exposes four read-only tools:
 
 - `scenario_context` — sanitized scenario/risk context;
 - `dataset_profile` — CSV structure without raw rows;
-- `database_profile` — projected columns, row count, null counts and key-cardinality metadata without raw database rows or connection URLs;
-- `quality_capabilities` — deterministic capabilities and constraints.
+- `database_profile` — projected columns, row counts, null counts and key-cardinality metadata without raw rows or connection URLs;
+- `quality_capabilities` — the exact deterministic capability registry and governance constraints available to agent planning.
 
-For SQL scenarios, the OpenAI planner uses the **same named candidate query selected for execution**. A regression test prevents planning context from silently falling back to `good` when `regression` or `schema_drift` is being validated.
-
-## Execution scope vs. plan scope
-
-`eval-result.json` answers: **Is the agent's proposed plan good enough to trust as a proposal?**
-
-`execution-scope.json` answers: **What deterministic checks did this adapter invocation actually execute?**
-
-Those are intentionally separate. Current SQL runs record schema differential, business-key reconciliation, duplicate-key detection, critical-field differential and database profiling. Scenario-level one-to-one traceability between every natural-language plan scenario and an executable check is still marked `NOT_IMPLEMENTED` rather than being implied.
-
-## Current implementation
-
-The lab currently contains:
-
-- deterministic CSV differential testing;
-- optional OpenAI Agents SDK planning;
-- read-only MCP context tools;
-- structured `ValidationPlan` contracts;
-- deterministic plan evals;
-- a pre-execution gate;
-- structured evidence and append-only observability events;
-- SQLite SQL source/target experiments;
-- schema drift, duplicate-key and composite-key validation;
-- optional environment-backed SQLAlchemy adapter;
-- explicit SQL execution-scope evidence;
-- `GO / CONDITIONAL_GO / NO_GO` reference release signals;
-- normal CI with no live model call;
-- a manual workflow for deliberate CSV or SQL live-agent experiments.
-
-The implementation should be read as **experimental scaffolding used to learn**, not as a finished platform.
+The OpenAI planner is instructed to use exact capability IDs returned by `quality_capabilities().execution_capabilities`. Useful checks without an implementation must be described as deferred research rather than presented as executable scenarios.
 
 ## Safety boundaries
 
@@ -226,22 +169,24 @@ The implementation should be read as **experimental scaffolding used to learn**,
 - API/database secrets remain outside source control;
 - MCP tools are workspace-bounded and metadata-oriented;
 - raw database rows and connection URLs are excluded from MCP profiles;
-- SQL validation accepts one read-only `SELECT` / CTE statement and rejects common mutation tokens;
-- database permissions must still enforce least-privilege read-only access in real integrations;
+- SQL validation accepts a single read-only `SELECT` / CTE statement and rejects common mutation tokens;
+- real database permissions must still enforce least-privilege read-only access;
 - agent output is a proposal, not release authority;
+- HIGH/CRITICAL uncovered planned scenarios block release;
+- human release approval remains mandatory;
 - live model calls are manual, not part of normal CI.
 
 ## CI contracts
 
 Every push/PR to `main` runs three independent jobs:
 
-1. **deterministic-validation** — CSV baseline, weak-plan blocking, SQL good path, SQL regression `NO_GO`, SQL schema-drift `NO_GO`, duplicate/composite-key tests and evidence upload;
-2. **agent-mcp-contract** — actual Agent/MCP dependency contracts and metadata-only database profiling, without an external model call;
-3. **database-portability-contract** — SQLAlchemy environment-backed adapter against a temporary database, without external infrastructure or credentials.
+1. **deterministic-validation** — CSV and SQL good/regression/schema-drift paths, weak-plan pre-execution blocking, unsupported-HIGH traceability blocking, and evidence upload;
+2. **agent-mcp-contract** — Agent/MCP contracts, metadata-only database profiling and authoritative execution capability registry, without an external model call;
+3. **database-portability-contract** — environment-backed SQLAlchemy adapter against a temporary database without external infrastructure or credentials.
 
 ## Manual live experiments
 
-The `Live Agentic QE Planning` workflow supports:
+`Live Agentic QE Planning` supports:
 
 - `csv-good`
 - `csv-regression`
@@ -253,20 +198,26 @@ A selected SQL candidate is passed consistently to both agent planning/MCP profi
 
 ## Current limitations
 
-- only a small number of synthetic scenarios have been explored;
-- two verified live-agent scenarios are retained so far: CSV and SQL good paths;
+- experiments use a small number of synthetic scenarios;
 - evaluator weights and threshold are illustrative, not empirically calibrated;
-- scenario-level plan-to-execution traceability is not yet implemented;
 - SQLAlchemy proves an adapter contract, not enterprise database production readiness;
-- SQL Server/PostgreSQL-specific operational behavior is not yet validated here;
+- SQL Server/PostgreSQL-specific operational behavior is not validated here;
 - release signals are reference policy logic, not organizational governance;
-- observability remains lightweight rather than a full telemetry platform;
+- observability is lightweight rather than a full telemetry platform;
 - no claim is made that agent-generated plans outperform experienced QA engineers;
 - no production ROI, reliability or safety conclusions should be inferred from this lab.
 
-## Next direction
+## Phase status
 
-Priority remains **understanding before expanding**. The highest-value next experiment is scenario-level plan-to-execution traceability: make every agent-planned check declare the deterministic capability that will execute it, then prove or defer it explicitly in evidence.
+**The current learning phase is feature-complete at V4.**
+
+The objective was not to build a production platform. It was to establish and test a defensible boundary between probabilistic planning and deterministic quality authority:
+
+```text
+Plan → Eval → Permission → Capability Mapping → Execution → Evidence → Coverage Gate → Release Signal → Human Decision
+```
+
+Further adapters or telemetry should be added only when a new research question justifies them, not to inflate repository scope.
 
 ---
 
