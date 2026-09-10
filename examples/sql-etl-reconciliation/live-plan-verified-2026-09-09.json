@@ -1,0 +1,117 @@
+{
+  "differential_testing": true,
+  "evidence": [
+    "baseline metadata: sqlite; columns transaction_id, amount, status, event_time; 3 rows; 3 distinct keys; 0 duplicate keys; 0 nulls in profiled columns.",
+    "candidate metadata for query good: same sqlite columns; 3 rows; 3 distinct keys; 0 duplicate keys; 0 nulls in profiled columns.",
+    "store schema comparison, row-count/key-count reconciliation, duplicate-key results, null-count results, critical-field comparison summary, and execution logs as release artifacts.",
+    "because database profiling exposes metadata only, obtain row-level comparison evidence through an approved read-only differential test harness without exposing raw rows to the planning agent."
+  ],
+  "generated_by": "openai-agents:gpt-5.6-luna",
+  "human_release_approval": true,
+  "objective": "Validate that the candidate SQL transformation preserves the baseline schema, business-key population, row integrity, and exact values of critical fields (amount, status, event_time), with auditable evidence and release gating.",
+  "rationale": "This is a high-risk source-to-target reconciliation with transaction_id as the business key and amount, status, and event_time as critical fields. Baseline and candidate metadata currently agree at three rows, three distinct keys, zero duplicates, and zero nulls, but metadata alone cannot establish row-level transformation equality. Read-only differential testing is therefore required, with explicit schema, key-set, cardinality, nullability, and critical-field assertions. Mutation checks demonstrate that the controls can detect realistic regressions, while structured evidence and a mandatory human approval preserve release accountability.",
+  "requested_tools": [
+    "sql-database-differential-testing",
+    "schema-drift-detection",
+    "row-reconciliation",
+    "duplicate-key-detection",
+    "read-only-database-profiling",
+    "structured-evidence",
+    "event-observability",
+    "execution-gating",
+    "risk-based-release-decision"
+  ],
+  "risk_coverage": [
+    "schema drift: missing, extra, renamed, reordered, or incompatible columns",
+    "missing or extra transaction_id business keys",
+    "duplicate transaction_id keys and one-to-many row expansion",
+    "nullability and completeness regressions",
+    "transformation integrity for amount, status, and event_time",
+    "row-count and distinct-key reconciliation",
+    "precision, type, timestamp, and formatting changes",
+    "failure observability and reproducible evidence"
+  ],
+  "scenarios": [
+    {
+      "assertion": "The candidate output schema matches the baseline contract for required column names, data types, nullability, and compatible precision/scale or timestamp representation; no undocumented columns are present.",
+      "evidence": [
+        "Machine-readable baseline-versus-candidate schema diff.",
+        "Profile evidence shows both sides currently expose the same four columns and zero nulls."
+      ],
+      "expected": "Exact contract match for transaction_id, amount, status, and event_time, with no missing, extra, renamed, or incompatible columns. Any drift fails validation.",
+      "name": "Schema contract and drift detection",
+      "priority": "CRITICAL"
+    },
+    {
+      "assertion": "After normalizing key representation according to the approved contract, the candidate transaction_id set equals the baseline set.",
+      "evidence": [
+        "Counts of baseline-only, candidate-only, and intersecting keys.",
+        "Row-count and distinct-key reconciliation report."
+      ],
+      "expected": "No missing or extra transaction_id values; baseline and candidate row counts and distinct-key counts remain equal at 3.",
+      "name": "Business-key set reconciliation",
+      "priority": "CRITICAL"
+    },
+    {
+      "assertion": "transaction_id remains unique and the transformation does not multiply or collapse business-key rows.",
+      "evidence": [
+        "Duplicate-key aggregation report for both outputs.",
+        "Per-key cardinality reconciliation summary, with failing keys recorded only in controlled test artifacts."
+      ],
+      "expected": "Duplicate transaction_id count is zero on both sides, and each baseline key maps to exactly one candidate row.",
+      "name": "Duplicate-key and cardinality integrity",
+      "priority": "CRITICAL"
+    },
+    {
+      "assertion": "Required business and critical fields do not acquire unexpected nulls or lose populated values.",
+      "evidence": [
+        "Column-level null-count comparison.",
+        "Completeness assertion results from the differential harness."
+      ],
+      "expected": "Null counts for transaction_id, amount, status, and event_time remain zero unless an explicitly approved contract permits otherwise.",
+      "name": "Nullability and completeness",
+      "priority": "HIGH"
+    },
+    {
+      "assertion": "For every matched transaction_id, amount, status, and event_time are equal under explicitly documented comparison rules, including numeric precision, status case/whitespace, and timestamp timezone/precision handling.",
+      "evidence": [
+        "Field-level mismatch counts and comparison-rule configuration.",
+        "Aggregate mismatch diagnostics and masked/controlled samples where permitted; do not expose raw database rows to the agent."
+      ],
+      "expected": "Zero mismatches for all three critical fields. Any amount rounding, status normalization change, timestamp shift, truncation, or formatting-induced semantic change fails validation.",
+      "name": "Critical-field transformation integrity",
+      "priority": "CRITICAL"
+    },
+    {
+      "assertion": "The validation detects representative regressions involving a removed key, added key, duplicate key, null critical field, amount precision change, status alteration, and event_time shift.",
+      "evidence": [
+        "Mutation-test matrix mapping each injected defect to the expected failed check.",
+        "Execution logs and exit status for each mutation case."
+      ],
+      "expected": "Each injected mutation is detected by the corresponding assertion and produces a failing, attributable result.",
+      "name": "Negative and boundary mutation checks",
+      "priority": "HIGH"
+    },
+    {
+      "assertion": "The validation emits structured, reproducible results sufficient to diagnose and gate release without exposing credentials or uncontrolled raw rows.",
+      "evidence": [
+        "Structured validation report and event logs.",
+        "Evidence manifest containing schema, reconciliation, duplicate, null, field-diff, and execution artifacts.",
+        "Controlled failure-injection run demonstrating alerting and non-zero failure status."
+      ],
+      "expected": "Logs include run identifier, query/version identifier, input metadata, assertion outcomes, counts, mismatch categories, timings, and failure reason; credentials are absent and failures are non-silent.",
+      "name": "Observability and evidence quality",
+      "priority": "HIGH"
+    },
+    {
+      "assertion": "Release proceeds only after all critical and high-priority checks pass and an accountable human reviewer approves the evidence.",
+      "evidence": [
+        "Final pass/fail gate record.",
+        "Named human approval recorded against the immutable validation artifact set."
+      ],
+      "expected": "Automatic gate is pass only when schema, key, uniqueness, completeness, and critical-field checks pass; human release approval remains mandatory.",
+      "name": "Release decision gate",
+      "priority": "CRITICAL"
+    }
+  ]
+}

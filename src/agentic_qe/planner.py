@@ -56,6 +56,7 @@ def get_plan_generator(
     *,
     plan_path: str | None = None,
     model: str | None = None,
+    candidate_query_name: str | None = None,
 ) -> ValidationPlanGenerator:
     normalized = provider.strip().lower()
     if normalized == "embedded":
@@ -67,5 +68,8 @@ def get_plan_generator(
     if normalized == "openai":
         from .openai_planner import OpenAIAgentsPlanGenerator
 
-        return OpenAIAgentsPlanGenerator(model=model)
+        return OpenAIAgentsPlanGenerator(
+            model=model,
+            candidate_query_name=candidate_query_name,
+        )
     raise ValueError(f"Unsupported plan provider: {provider}")

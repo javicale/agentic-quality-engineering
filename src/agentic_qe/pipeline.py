@@ -20,10 +20,16 @@ def generate_validation_plan(
     provider: str,
     plan_path: str | None = None,
     model: str | None = None,
+    candidate_query_name: str | None = None,
 ) -> dict:
     scenario_file = Path(scenario_path).resolve()
     scenario = load_scenario(scenario_file)
-    generator = get_plan_generator(provider, plan_path=plan_path, model=model)
+    generator = get_plan_generator(
+        provider,
+        plan_path=plan_path,
+        model=model,
+        candidate_query_name=candidate_query_name,
+    )
     planned = generator.generate(scenario=scenario, scenario_path=scenario_file)
     eval_result = evaluate_validation_plan(planned.plan)
     gate = decide_execution_gate(plan=planned.plan, eval_result=eval_result)
@@ -171,6 +177,10 @@ def build_parser() -> argparse.ArgumentParser:
     plan_parser.add_argument("--provider", choices=["embedded", "file", "openai"], default="embedded")
     plan_parser.add_argument("--plan")
     plan_parser.add_argument("--model")
+    plan_parser.add_argument(
+        "--candidate-query",
+        help="Named SQL candidate query to profile during planning; ignored for CSV scenarios.",
+    )
     plan_parser.add_argument("--output", default="validation-plan-result.json")
 
     run_parser = subparsers.add_parser("run", help="Execute one validation scenario.")
@@ -195,6 +205,7 @@ def main() -> None:
             provider=args.provider,
             plan_path=args.plan,
             model=args.model,
+            candidate_query_name=args.candidate_query,
         )
         Path(args.output).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print(
