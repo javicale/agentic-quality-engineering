@@ -1,0 +1,63 @@
+{
+  "differential_testing": true,
+  "evidence": [
+    "scenario context: sql-etl-reconciliation; key field transaction_id; critical fields amount, status, event_time; sql engine sqlite.",
+    "baseline metadata: columns transaction_id, amount, status, event_time; row_count 3; all critical and key null counts 0; distinct_key_count 3; duplicate_key_count 0.",
+    "candidate metadata: columns transaction_id, amount, status, event_time; row_count 3; all critical and key null counts 0; distinct_key_count 3; duplicate_key_count 0.",
+    "validation must use sanitized metadata and comparison results only; database rows and credentials must remain inaccessible."
+  ],
+  "generated_by": "openai-agents:gpt-5.6-luna",
+  "human_release_approval": true,
+  "objective": "Validate the candidate SQLite SQL transformation against the baseline for projected schema, business-key integrity, duplicate keys, critical fields, and database metadata consistency.",
+  "rationale": "The plan is limited to checks executable by the registered SQL capabilities and uses metadata-only evidence. Full aggregate reconciliation, numeric precision/tolerance analysis, query-plan/performance validation, and row-level forensic inspection are deferred future research because no corresponding executable capability is registered and database rows must not be exposed. Execution should be gated on complete evidence and retain append-only observability; a human must approve or reject release.",
+  "requested_tools": ["scenario_context", "database_profile", "quality_capabilities"],
+  "risk_coverage": [
+    "projected result schema drift",
+    "missing or unexpected transaction_id keys",
+    "duplicate transaction_id values",
+    "differences in amount, status, or event_time",
+    "row, null, and key-cardinality metadata inconsistencies"
+  ],
+  "scenarios": [
+    {
+      "assertion": "The candidate projected SQL result has the same columns as the baseline, with no missing, unexpected, or incompatible projected fields.",
+      "evidence": ["Baseline and candidate database profiles both report columns transaction_id, amount, status, event_time."],
+      "expected": "Projected baseline and candidate schemas match exactly: transaction_id, amount, status, event_time.",
+      "name": "Projected schema equality",
+      "priority": "HIGH",
+      "required_capabilities": ["projected-schema-differential"]
+    },
+    {
+      "assertion": "The candidate contains exactly the same business-key set as the baseline for transaction_id, with no missing or unexpected keys.",
+      "evidence": ["Scenario declares transaction_id as the business key.", "Baseline and candidate each report 3 distinct transaction_id values."],
+      "expected": "No missing or unexpected transaction_id keys are reported.",
+      "name": "Business-key reconciliation",
+      "priority": "CRITICAL",
+      "required_capabilities": ["business-key-reconciliation"]
+    },
+    {
+      "assertion": "Neither baseline nor candidate contains duplicate transaction_id values, and candidate duplicate-key cardinality does not exceed baseline.",
+      "evidence": ["Baseline duplicate_key_count is 0.", "Candidate duplicate_key_count is 0."],
+      "expected": "Duplicate transaction_id count is 0 for both sides.",
+      "name": "Duplicate business-key detection",
+      "priority": "HIGH",
+      "required_capabilities": ["duplicate-key-detection"]
+    },
+    {
+      "assertion": "For reconciled transaction_id keys, candidate values for amount, status, and event_time match baseline values exactly.",
+      "evidence": ["Scenario declares amount, status, and event_time as critical fields.", "Both profiles report these columns and zero nulls for each side."],
+      "expected": "No differences are reported for amount, status, or event_time.",
+      "name": "Critical-field differential",
+      "priority": "CRITICAL",
+      "required_capabilities": ["critical-field-differential"]
+    },
+    {
+      "assertion": "Candidate sanitized database metadata matches baseline for provider, row count, null counts, key cardinality, and duplicate-key count.",
+      "evidence": ["Baseline and candidate profiles report identical provider, row count, null counts, distinct key count, and duplicate key count."],
+      "expected": "Both profiles report SQLite, row_count 3, zero nulls for transaction_id/amount/status/event_time, distinct_key_count 3, and duplicate_key_count 0.",
+      "name": "Database metadata profile consistency",
+      "priority": "HIGH",
+      "required_capabilities": ["database-metadata-profile"]
+    }
+  ]
+}
