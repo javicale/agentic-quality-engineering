@@ -4,23 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-quality-engineering"
-version = "0.3.0"
-description = "Exploratory Agentic Quality Engineering lab for learning agent planning, evals, MCP, CSV/SQL differential testing, observability, evidence and human-governed release decisions."
+version = "0.4.0"
+description = "Exploratory Agentic Quality Engineering lab for agent planning, MCP, deterministic evals, plan-to-execution traceability, differential testing, evidence and human-governed release decisions."
 requires-python = ">=3.11"
 authors = [{ name = "Javier Capa" }]
-dependencies = [
-  "pydantic>=2.11,<3",
-]
+dependencies = ["pydantic>=2.11,<3"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
-agent = [
-  "openai-agents>=0.22.2,<0.23",
-  "mcp>=2,<3",
-]
-database = [
-  "sqlalchemy>=2.0.52,<2.1",
-]
+agent = ["openai-agents>=0.22.2,<0.23", "mcp>=2,<3"]
+database = ["sqlalchemy>=2.0.52,<2.1"]
 
 [project.scripts]
 agentic-qe = "agentic_qe.pipeline:main"

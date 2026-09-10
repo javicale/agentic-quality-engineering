@@ -18,18 +18,10 @@
   },
   "validation_plan": {
     "objective": "Validate SQL source-to-target reconciliation, representation fidelity, schema compatibility and row completeness before release.",
-    "risk_coverage": [
-      "functional transformation regression",
-      "data integrity reconciliation",
-      "record completeness and duplicate/loss risk"
-    ],
+    "risk_coverage": ["functional transformation regression", "data integrity reconciliation", "record completeness and duplicate/loss risk"],
     "differential_testing": true,
     "human_release_approval": true,
-    "evidence": [
-      "structured comparison result",
-      "execution events",
-      "database profile artifact"
-    ],
+    "evidence": ["structured comparison result", "execution events", "database profile artifact"],
     "requested_tools": ["database_profile", "quality_capabilities"],
     "scenarios": [
       {
@@ -37,21 +29,24 @@
         "assertion": "baseline and candidate queries must expose the required key and critical columns",
         "expected": "all required SQL columns are present with no missing baseline fields",
         "priority": "HIGH",
-        "evidence": ["database profile", "structured result"]
+        "evidence": ["database profile", "structured result"],
+        "required_capabilities": ["projected-schema-differential", "database-metadata-profile"]
       },
       {
         "name": "row_reconciliation",
         "assertion": "candidate rows must reconcile one-to-one against baseline rows by transaction_id",
         "expected": "no missing, extra or duplicate-key records are observed",
         "priority": "HIGH",
-        "evidence": ["structured comparison", "execution events"]
+        "evidence": ["structured comparison", "execution events"],
+        "required_capabilities": ["business-key-reconciliation", "duplicate-key-detection"]
       },
       {
         "name": "precision_and_value_fidelity",
         "assertion": "critical SQL values must preserve exact expected representation and content",
         "expected": "amount, status and event_time exactly match the baseline for every transaction_id",
         "priority": "HIGH",
-        "evidence": ["field-level differences", "structured result"]
+        "evidence": ["field-level differences", "structured result"],
+        "required_capabilities": ["critical-field-differential"]
       }
     ]
   }

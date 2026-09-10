@@ -26,10 +26,12 @@ def build_validation_agent(*, model: str, mcp_server):
         name="Quality Validation Planner",
         model=model,
         instructions=(
-            "You are a Senior Quality Engineering planning agent. Build a concise, executable validation plan "
-            "for the supplied change. Use the MCP context tools before finalizing the plan. Do not weaken human "
-            "release accountability. Prefer risk-based scenarios, explicit assertions, decision-grade evidence, "
-            "and differential testing for data transformations. Never invent production/client identifiers or data."
+            "You are a Senior Quality Engineering planning agent. Build a concise, executable validation plan for the "
+            "supplied change. Use MCP context before finalizing it. Agent output is a proposal, not release authority. "
+            "Every scenario MUST declare required_capabilities using only exact IDs returned by "
+            "quality_capabilities().execution_capabilities. Never invent a supported capability. If a useful check has no "
+            "registered execution capability, describe it as deferred research in rationale instead of presenting it as an "
+            "executable scenario. Preserve human release accountability and never invent client or production data."
         ),
         output_type=ValidationPlan,
         mcp_servers=[mcp_server],
@@ -38,62 +40,44 @@ def build_validation_agent(*, model: str, mcp_server):
     )
 
 
-def build_planning_prompt(
-    *,
-    scenario: dict,
-    relative_scenario: str,
-    candidate_query_name: str | None = None,
-) -> str:
-    """Build the agent prompt with explicit execution-context alignment.
-
-    For SQL scenarios the candidate query name is part of planning context. This prevents
-    the agent from profiling one candidate while deterministic execution validates another.
-    """
+def build_planning_prompt(*, scenario: dict, relative_scenario: str, candidate_query_name: str | None = None) -> str:
     if scenario.get("sql"):
         sql_config = scenario["sql"]
         candidate = candidate_query_name or "good"
         candidate_queries = sql_config.get("candidate_queries", {})
         if candidate not in candidate_queries:
-            raise ValueError(
-                f"Unknown SQL candidate query {candidate!r}. "
-                f"Choose one of: {', '.join(sorted(candidate_queries))}"
-            )
+            raise ValueError(f"Unknown SQL candidate query {candidate!r}. Choose one of: {', '.join(sorted(candidate_queries))}")
         return (
-            "Create a validation plan for this SQL/database scenario. Before producing the final structured plan, "
-            f"use scenario_context('{relative_scenario}'), then database_profile(scenario_path='{relative_scenario}', "
-            "side='baseline'), database_profile(scenario_path='" + relative_scenario + "', side='candidate', "
-            f"candidate_query_name='{candidate}'), and quality_capabilities(). Cover schema drift, missing/extra/duplicate "
-            "business keys, critical-field transformation integrity, evidence and observability. Database profile "
-            "tools expose metadata only; never request raw rows or credentials. Only present a validation scenario as "
-            "executable when it can be supported by the capabilities returned by quality_capabilities(). If an additional "
-            "check would be useful but is not currently executable, describe it in the rationale as a deferred/future "
-            "experiment rather than implying it ran. Preserve human_release_approval=true and return only the structured "
-            "ValidationPlan output."
+            "Create a validation plan for this SQL/database scenario. First use "
+            f"scenario_context('{relative_scenario}'), database_profile(scenario_path='{relative_scenario}', side='baseline'), "
+            f"database_profile(scenario_path='{relative_scenario}', side='candidate', candidate_query_name='{candidate}'), "
+            "and quality_capabilities(). Every executable scenario MUST populate required_capabilities with one or more "
+            "exact IDs from quality_capabilities().execution_capabilities. Cover only checks the returned capability registry "
+            "can actually execute, such as schema, key, duplicate-key, critical-field or database-profile validation. If a "
+            "useful check is not currently executable, mention it in rationale as deferred/future research and do not create "
+            "an executable scenario for it. Database tools expose metadata only; never request raw rows or credentials. "
+            "Preserve human_release_approval=true and return only the structured ValidationPlan output."
         )
 
     source_path = scenario["source_dataset"]
     return (
-        "Create a validation plan for this scenario. Before producing the final structured plan, use the MCP "
-        f"tools to inspect scenario_context('{relative_scenario}'), dataset_profile('{source_path}') and "
-        "quality_capabilities(). The plan must preserve human_release_approval=true and include explicit "
-        "evidence requirements. Return only the structured ValidationPlan output."
+        "Create a validation plan for this CSV/ETL scenario. First use "
+        f"scenario_context('{relative_scenario}'), dataset_profile('{source_path}') and quality_capabilities(). Every "
+        "executable scenario MUST populate required_capabilities with one or more exact IDs from "
+        "quality_capabilities().execution_capabilities. Only declare scenarios supported by the registry; put unsupported "
+        "ideas in rationale as deferred/future research. Preserve human_release_approval=true and include explicit "
+        "decision-grade evidence requirements. Return only the structured ValidationPlan output."
     )
 
 
 class OpenAIAgentsPlanGenerator:
-    def __init__(
-        self,
-        model: str | None = None,
-        candidate_query_name: str | None = None,
-    ) -> None:
+    def __init__(self, model: str | None = None, candidate_query_name: str | None = None) -> None:
         self.model = model or os.getenv("AGENTIC_QE_MODEL") or DEFAULT_MODEL
         self.candidate_query_name = candidate_query_name
 
     def generate(self, *, scenario: dict, scenario_path: Path) -> PlannedValidation:
         if not os.getenv("OPENAI_API_KEY"):
-            raise RuntimeError(
-                "OPENAI_API_KEY is required for --plan-source=openai. Use embedded/file planning for deterministic CI."
-            )
+            raise RuntimeError("OPENAI_API_KEY is required for --plan-source=openai. Use embedded/file planning for deterministic CI.")
 
         _, Runner, _, MCPServerStdio = _require_sdk()
         workspace = Path(os.getenv("AGENTIC_QE_WORKSPACE", os.getcwd())).resolve()
@@ -103,34 +87,18 @@ class OpenAIAgentsPlanGenerator:
         if scenario.get("sql"):
             sql_config = scenario["sql"]
             if str(sql_config.get("engine", "sqlite")).lower() == "sqlalchemy-env":
-                for env_name in (
-                    str(sql_config.get("baseline_url_env", "")),
-                    str(sql_config.get("candidate_url_env", "")),
-                ):
+                for env_name in (str(sql_config.get("baseline_url_env", "")), str(sql_config.get("candidate_url_env", ""))):
                     if env_name and os.getenv(env_name):
                         mcp_env[env_name] = os.environ[env_name]
-            prompt = build_planning_prompt(
-                scenario=scenario,
-                relative_scenario=relative_scenario,
-                candidate_query_name=self.candidate_query_name,
-            )
+            prompt = build_planning_prompt(scenario=scenario, relative_scenario=relative_scenario, candidate_query_name=self.candidate_query_name)
         else:
             source_path = str((scenario_path.parent / scenario["source_dataset"]).resolve().relative_to(workspace))
-            prompt_scenario = {**scenario, "source_dataset": source_path}
-            prompt = build_planning_prompt(
-                scenario=prompt_scenario,
-                relative_scenario=relative_scenario,
-            )
+            prompt = build_planning_prompt(scenario={**scenario, "source_dataset": source_path}, relative_scenario=relative_scenario)
 
         async def run_agent() -> ValidationPlan:
             async with MCPServerStdio(
                 name="Agentic QE Context",
-                params={
-                    "command": sys.executable,
-                    "args": ["-m", "agentic_qe.mcp_server"],
-                    "cwd": str(workspace),
-                    "env": mcp_env,
-                },
+                params={"command": sys.executable, "args": ["-m", "agentic_qe.mcp_server"], "cwd": str(workspace), "env": mcp_env},
                 cache_tools_list=True,
                 use_structured_content=True,
             ) as server:
@@ -154,8 +122,9 @@ class OpenAIAgentsPlanGenerator:
                 live_model_call=True,
                 notes=[
                     "Agent was given read-only MCP context tools.",
+                    "Plan scenarios must declare exact deterministic execution capabilities.",
+                    "Plan-to-execution coverage is evaluated independently before the final release signal.",
                     "Database profiles expose metadata, not raw rows or credentials.",
-                    "Plan is evaluated by a deterministic gate before execution.",
                     "SQL candidate planning context is aligned with the candidate selected for execution.",
                 ],
             ),
