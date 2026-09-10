@@ -36,6 +36,7 @@ jobs:
             --candidate examples/etl-decimal-precision/candidate-good.csv \
             --output artifacts \
             --enforce-release
+          grep -q '"status": "PASS"' artifacts/plan-traceability.json
 
       - name: Prove weak agent plan is blocked before execution
         run: |
@@ -52,6 +53,22 @@ jobs:
           test "$status" -eq 2
           grep -q '"status": "BLOCKED"' artifacts-weak-plan/execution-gate.json
 
+      - name: Prove unsupported HIGH scenario overrides green differential
+        run: |
+          set +e
+          agentic-qe run \
+            --scenario examples/etl-decimal-precision/scenario.json \
+            --candidate examples/etl-decimal-precision/candidate-good.csv \
+            --plan-source file \
+            --plan examples/etl-decimal-precision/agent-proposal-unsupported.json \
+            --output artifacts-unsupported-plan \
+            --enforce-release
+          status=$?
+          set -e
+          test "$status" -eq 2
+          grep -q '"mapping_status": "UNSUPPORTED"' artifacts-unsupported-plan/plan-traceability.json
+          grep -q '"decision": "NO_GO"' artifacts-unsupported-plan/release-signal.json
+
       - name: Execute SQL differential good path
         run: |
           agentic-qe-sql \
@@ -60,6 +77,8 @@ jobs:
             --output sql-artifacts-good \
             --enforce-release
           grep -q '"difference_count": 0' sql-artifacts-good/database-differential.json
+          grep -q '"status": "PASS"' sql-artifacts-good/plan-traceability.json
+          grep -q '"scenario_level_traceability": "IMPLEMENTED"' sql-artifacts-good/execution-scope.json
 
       - name: Prove SQL regression forces NO_GO
         run: |
@@ -73,6 +92,7 @@ jobs:
           set -e
           test "$status" -eq 2
           grep -q '"decision": "NO_GO"' sql-artifacts-regression/release-signal.json
+          grep -q '"status": "BLOCKED"' sql-artifacts-regression/plan-traceability.json
 
       - name: Prove SQL schema drift forces NO_GO
         run: |
@@ -95,6 +115,7 @@ jobs:
           path: |
             artifacts/
             artifacts-weak-plan/
+            artifacts-unsupported-plan/
             sql-artifacts-good/
             sql-artifacts-regression/
             sql-artifacts-schema-drift/

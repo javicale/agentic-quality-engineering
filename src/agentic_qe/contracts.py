@@ -8,6 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 Priority = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 
+def _normalize_capability_id(value: str) -> str:
+    return "-".join(str(value).strip().lower().replace("_", "-").split())
+
+
 class ValidationScenario(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -16,6 +20,19 @@ class ValidationScenario(BaseModel):
     expected: str = Field(min_length=1)
     priority: Priority = "HIGH"
     evidence: list[str] = Field(default_factory=list)
+    required_capabilities: list[str] = Field(default_factory=list)
+
+    @field_validator("required_capabilities")
+    @classmethod
+    def normalize_capabilities(cls, values: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            capability = _normalize_capability_id(value)
+            if capability and capability not in seen:
+                cleaned.append(capability)
+                seen.add(capability)
+        return cleaned
 
 
 class ValidationPlan(BaseModel):

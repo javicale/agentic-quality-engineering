@@ -3,33 +3,26 @@
   "title": "Preserve declared decimal precision during ETL transformation",
   "risk": "HIGH",
   "key_field": "record_id",
-  "critical_fields": [
-    "odometer_start",
-    "odometer_end"
-  ],
+  "critical_fields": ["odometer_start", "odometer_end"],
   "source_dataset": "source.csv",
   "expected_dataset": "expected.csv",
   "validation_plan": {
-    "risk_coverage": [
-      "functional",
-      "data-integrity"
-    ],
+    "risk_coverage": ["functional", "data-integrity"],
     "differential_testing": true,
     "human_release_approval": true,
-    "evidence": [
-      "structured-result",
-      "execution-events"
-    ],
+    "evidence": ["structured-result", "execution-events"],
     "scenarios": [
       {
         "name": "zero_decimal_precision",
         "assertion": "candidate values must exactly match expected string representation",
-        "expected": "0.00 remains 0.00 after transformation"
+        "expected": "0.00 remains 0.00 after transformation",
+        "required_capabilities": ["csv-record-differential", "critical-field-differential"]
       },
       {
         "name": "non_zero_decimal_precision",
         "assertion": "candidate values must exactly match expected string representation",
-        "expected": "non-zero values retain two decimal places"
+        "expected": "non-zero values retain two decimal places",
+        "required_capabilities": ["csv-record-differential", "critical-field-differential"]
       }
     ]
   }

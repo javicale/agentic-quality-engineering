@@ -26,3 +26,27 @@ def test_weak_plan_is_blocked_before_execution():
     assert gate.allowed is False
     assert gate.status == "BLOCKED"
     assert any("human" in reason.lower() for reason in gate.reasons)
+    assert any("required_capability" in reason for reason in gate.reasons)
+
+
+def test_legacy_plan_without_capability_mapping_is_not_executable_under_v4():
+    candidate = ValidationPlan.model_validate({
+        "objective": "Legacy otherwise-strong plan.",
+        "risk_coverage": ["functional", "data integrity"],
+        "differential_testing": True,
+        "human_release_approval": True,
+        "evidence": ["structured result", "execution events"],
+        "requested_tools": ["quality_capabilities"],
+        "rationale": "Predates V4 traceability.",
+        "generated_by": "legacy",
+        "scenarios": [{
+            "name": "legacy_scenario",
+            "assertion": "candidate must match the deterministic expectation",
+            "expected": "candidate matches the deterministic expectation exactly",
+            "priority": "HIGH",
+            "evidence": ["structured result"],
+        }],
+    })
+    gate = decide_execution_gate(plan=candidate, eval_result=evaluate_validation_plan(candidate))
+    assert gate.status == "BLOCKED"
+    assert any("required_capability" in reason for reason in gate.reasons)

@@ -1,0 +1,28 @@
+{
+  "objective": "Validate decimal precision preservation with a deliberately unsupported high-priority mutation scenario.",
+  "risk_coverage": ["functional regression", "data integrity and mutation coverage"],
+  "differential_testing": true,
+  "human_release_approval": true,
+  "evidence": ["structured comparison report", "execution events"],
+  "requested_tools": ["scenario_context", "dataset_profile", "quality_capabilities"],
+  "rationale": "This fixture proves that a high-quality plan cannot obtain GO when a HIGH scenario depends on an unregistered execution capability.",
+  "generated_by": "fixture-agent:v4-unsupported",
+  "scenarios": [
+    {
+      "name": "precision_differential",
+      "assertion": "candidate values must exactly match expected string representation",
+      "expected": "all critical decimal values preserve exact representation",
+      "priority": "HIGH",
+      "evidence": ["structured comparison report", "execution events"],
+      "required_capabilities": ["csv-record-differential", "critical-field-differential"]
+    },
+    {
+      "name": "mutation_sensitivity",
+      "assertion": "the validation suite must detect deliberately injected transformation mutations",
+      "expected": "every seeded mutation is detected by the validation suite",
+      "priority": "HIGH",
+      "evidence": ["mutation report", "execution events"],
+      "required_capabilities": ["mutation-testing"]
+    }
+  ]
+}

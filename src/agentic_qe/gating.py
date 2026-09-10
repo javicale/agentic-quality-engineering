@@ -24,6 +24,13 @@ def decide_execution_gate(
     if not plan.scenarios:
         reasons.append("Plan contains no executable validation scenarios.")
 
+    undeclared = [scenario.name for scenario in plan.scenarios if not scenario.required_capabilities]
+    if undeclared:
+        reasons.append(
+            "Every validation scenario must declare at least one deterministic required_capability before execution. "
+            "Missing: " + ", ".join(undeclared)
+        )
+
     allowed = not reasons
     return ExecutionGateResult(
         allowed=allowed,
