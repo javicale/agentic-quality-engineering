@@ -80,15 +80,15 @@ See [Research Notes](docs/RESEARCH-NOTES.md) and [Learning Roadmap](docs/LEARNIN
 | --- | --- | --- | --- |
 | **E1 — Deterministic differential baseline** | Can release evidence be separated from simple test pass/fail? | CSV source-to-expected comparison, evidence and risk-based signal | Deterministic evidence provides the baseline an agent should not bypass. |
 | **E2 — Agent planning + MCP** | Can an agent propose a validation plan while deterministic controls retain authority? | OpenAI Agents SDK, read-only MCP context, structured plan, eval and execution gate | Yes in the reference scenario, but the first live run also exposed a defect in the evaluator itself. |
-| **E3 — SQL / Database Differential** | Can the same pattern validate database transformations without giving the agent raw database data or credentials? | SQLite reference execution, SQLAlchemy portability contract, schema/key/row/field reconciliation and MCP metadata profiles | Technically feasible in the synthetic lab; production-scale applicability remains intentionally unproven. |
+| **E3 — SQL / Database Differential** | Can the same pattern validate database transformations without giving the agent raw database data or credentials? | SQLite reference execution, SQLAlchemy portability contract, schema/key/row/field reconciliation, MCP metadata profiles and a verified live SQL agent run | The live SQL experiment reached `100/100 → PASS → GO / LOW`; it also exposed the need to separate plan quality from execution coverage. |
 
-## Most useful finding so far
+## Most useful findings so far
 
 The first live agent run produced a reasonable validation plan but initially scored **80/100** because the evaluator required overly literal tags. I treated that as an **evaluator defect**, corrected the deterministic taxonomy, and retained the captured live plan as a regression fixture.
 
-That finding matters more than simply adding another adapter: **the system evaluating an agent must itself be testable.**
+The first live SQL agent run produced an excellent **100/100** plan, but it also proposed broader work such as mutation checks that a single SQL differential invocation did not execute. That exposed a second quality problem: **a strong plan and a green execution are different claims**. V3.1 therefore records `execution-scope.json` so a release signal cannot be casually interpreted as “every agent scenario ran.”
 
-See [Verified Live Run](docs/VERIFIED-LIVE-RUN.md).
+See [Verified Live Run](docs/VERIFIED-LIVE-RUN.md) and [Verified Live SQL Run](docs/VERIFIED-LIVE-SQL-RUN.md).
 
 ## E3 — SQL / Database Differential
 
@@ -103,7 +103,7 @@ Business-key reconciliation
    ↓
 Row + critical-field differential
    ↓
-Evidence
+Evidence + explicit execution scope
    ↓
 Release signal
 ```
@@ -116,6 +116,26 @@ The differential layer explicitly detects:
 - composite business keys;
 - exact critical-field differences such as `0.00` versus `0`;
 - row count, null count and key-cardinality signals.
+
+### Verified live Agentic SQL path
+
+On **2026-09-09**, a real `gpt-5.6-luna` call used read-only MCP `scenario_context`, baseline/candidate `database_profile`, and `quality_capabilities` to create a structured SQL validation plan. The plan scored **100/100**, the execution gate passed, the deterministic adapter compared 3 rows with 0 differences, and the reference release policy produced **`GO / LOW`**.
+
+```text
+gpt-5.6-luna
+   ↓
+metadata-only MCP database context
+   ↓
+SQL ValidationPlan — 100/100
+   ↓
+Execution Gate PASS
+   ↓
+3 rows / 0 differences
+   ↓
+GO / LOW
+```
+
+The sanitized live plan is retained at [live-plan-verified-2026-09-09.json](examples/sql-etl-reconciliation/live-plan-verified-2026-09-09.json).
 
 ### Reproduce the SQLite experiment
 
@@ -155,22 +175,6 @@ The good path reaches `GO / LOW`. The regression and missing-column paths determ
 
 SQLite remains the credential-free deterministic reference. A separate `SQLAlchemyDatabaseAdapter` resolves connection URLs **only from environment variables** and is tested in CI against a temporary database.
 
-A production-like experiment can declare:
-
-```json
-{
-  "sql": {
-    "engine": "sqlalchemy-env",
-    "baseline_url_env": "BASELINE_DATABASE_URL",
-    "candidate_url_env": "CANDIDATE_DATABASE_URL",
-    "baseline_query": "SELECT ...",
-    "candidate_queries": {
-      "default": "SELECT ..."
-    }
-  }
-}
-```
-
 The URL value is not returned in database profiles, evidence or agent-visible MCP output. SQL Server, PostgreSQL and other SQLAlchemy-supported dialects can use the same experiment boundary when the appropriate DBAPI/driver is installed; that does **not** imply those enterprise integrations have already been production-validated here.
 
 See [V3 SQL / Database Differential](docs/V3-SQL-DATABASE-DIFFERENTIAL.md).
@@ -184,7 +188,15 @@ The MCP server exposes four tools:
 - `database_profile` — projected columns, row count, null counts and key-cardinality metadata without raw database rows or connection URLs;
 - `quality_capabilities` — deterministic capabilities and constraints.
 
-For SQL scenarios, the OpenAI planner now uses `database_profile` rather than assuming a CSV `source_dataset`.
+For SQL scenarios, the OpenAI planner uses the **same named candidate query selected for execution**. A regression test prevents planning context from silently falling back to `good` when `regression` or `schema_drift` is being validated.
+
+## Execution scope vs. plan scope
+
+`eval-result.json` answers: **Is the agent's proposed plan good enough to trust as a proposal?**
+
+`execution-scope.json` answers: **What deterministic checks did this adapter invocation actually execute?**
+
+Those are intentionally separate. Current SQL runs record schema differential, business-key reconciliation, duplicate-key detection, critical-field differential and database profiling. Scenario-level one-to-one traceability between every natural-language plan scenario and an executable check is still marked `NOT_IMPLEMENTED` rather than being implied.
 
 ## Current implementation
 
@@ -200,9 +212,10 @@ The lab currently contains:
 - SQLite SQL source/target experiments;
 - schema drift, duplicate-key and composite-key validation;
 - optional environment-backed SQLAlchemy adapter;
+- explicit SQL execution-scope evidence;
 - `GO / CONDITIONAL_GO / NO_GO` reference release signals;
 - normal CI with no live model call;
-- a manual workflow for deliberate live-agent experiments.
+- a manual workflow for deliberate CSV or SQL live-agent experiments.
 
 The implementation should be read as **experimental scaffolding used to learn**, not as a finished platform.
 
@@ -226,60 +239,24 @@ Every push/PR to `main` runs three independent jobs:
 2. **agent-mcp-contract** — actual Agent/MCP dependency contracts and metadata-only database profiling, without an external model call;
 3. **database-portability-contract** — SQLAlchemy environment-backed adapter against a temporary database, without external infrastructure or credentials.
 
-## Running the lab
+## Manual live experiments
 
-Core experiments:
+The `Live Agentic QE Planning` workflow supports:
 
-```bash
-python -m pip install -e ".[dev]"
-pytest -m "not integration and not database_integration"
-```
+- `csv-good`
+- `csv-regression`
+- `sql-good`
+- `sql-regression`
+- `sql-schema-drift`
 
-Agent/MCP contract tests:
-
-```bash
-python -m pip install -e ".[dev,agent]"
-pytest tests/integration
-```
-
-Database portability contract:
-
-```bash
-python -m pip install -e ".[dev,database]"
-pytest -m database_integration
-```
-
-A live agent run remains deliberately separate and manual. See [Live Agent Run](docs/LIVE-AGENT-RUN.md).
-
-## Repository map
-
-```text
-.
-├── docs/
-│   ├── RESEARCH-NOTES.md
-│   ├── LEARNING-ROADMAP.md
-│   ├── VERIFIED-LIVE-RUN.md
-│   ├── V3-SQL-DATABASE-DIFFERENTIAL.md
-│   └── MCP-TOOLS.md
-├── examples/
-│   ├── etl-decimal-precision/
-│   └── sql-etl-reconciliation/
-├── schemas/
-├── src/agentic_qe/
-│   ├── differential.py
-│   ├── sql_adapter.py
-│   ├── sql_pipeline.py
-│   ├── openai_planner.py
-│   └── mcp_server.py
-├── tests/
-└── .github/workflows/
-```
+A selected SQL candidate is passed consistently to both agent planning/MCP profiling and deterministic execution.
 
 ## Current limitations
 
 - only a small number of synthetic scenarios have been explored;
-- only one verified live-agent scenario is retained so far;
+- two verified live-agent scenarios are retained so far: CSV and SQL good paths;
 - evaluator weights and threshold are illustrative, not empirically calibrated;
+- scenario-level plan-to-execution traceability is not yet implemented;
 - SQLAlchemy proves an adapter contract, not enterprise database production readiness;
 - SQL Server/PostgreSQL-specific operational behavior is not yet validated here;
 - release signals are reference policy logic, not organizational governance;
@@ -289,15 +266,7 @@ A live agent run remains deliberately separate and manual. See [Live Agent Run](
 
 ## Next direction
 
-Priority remains **understanding before expanding**:
-
-1. agents vs. normal LLM calls;
-2. MCP value and boundaries;
-3. eval design and failure modes;
-4. observability and replayability;
-5. human-in-the-loop release governance;
-6. ephemeral real-database experiments when they answer a specific research question;
-7. only then additional QE execution adapters.
+Priority remains **understanding before expanding**. The highest-value next experiment is scenario-level plan-to-execution traceability: make every agent-planned check declare the deterministic capability that will execute it, then prove or defer it explicitly in evidence.
 
 ---
 
